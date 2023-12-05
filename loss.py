@@ -27,7 +27,7 @@ def get_losses(
     """
 
     if loss_quantities is None:
-        loss_quantities: dict[str,Quantity] = {}
+        loss_quantities = {}
     if model_parameters is None:
         model_parameters = {}
     if diffable_quantities is None:
@@ -45,7 +45,7 @@ def get_losses(
 
     for model_name, model in models.items():
         model.set_requires_grad(models_require_grad)
-        q[model_name], _ = model.apply(q)
+        q[model_name] = model.apply(q)
 
     for model_parameter_name, model_parameter in model_parameters.items():
         model_parameter.requires_grad_(models_require_grad)

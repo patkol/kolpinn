@@ -103,39 +103,15 @@ class QuantityModel:
             self,
             q: QuantityDict,
             *,
-            quantities_requiring_grad_labels = None,
-            quantities_requiring_grad = None,
             get_intermediates: bool = False,
         ):
-        """
-        Quantities specified in `quantities_requiring_grad_labels` will be tracked,
-        their expanded versions are returned as a dict.
-        Already tracked quantities (from other models for example) can be passed
-        via `quantities_requiring_grad`, they will be reused.
-        `quantities_requiring_grad` will be updated!
-        """
-
-        if quantities_requiring_grad_labels is None:
-            quantities_requiring_grad_labels = []
-        if quantities_requiring_grad is None:
-            quantities_requiring_grad = {}
-
-        assert set(quantities_requiring_grad.keys()).isdisjoint(set(quantities_requiring_grad_labels))
-
         # inputs_tensor[gridpoint, input quantity]
         inputs_tensor = torch.zeros(
             (q.grid.n_points, self.n_inputs),
             dtype = self.network_dtype,
         )
         for (i, label) in enumerate(self.inputs_labels):
-            input_quantity = (quantities_requiring_grad[label]
-                              if label in quantities_requiring_grad.keys()
-                              else q[label])
-            assert input_quantity.grid is q.grid
-            input_quantity = Quantity(input_quantity.get_expanded_values(), q.grid)
-            if label in quantities_requiring_grad_labels:
-                input_quantity.values.requires_grad = True
-                quantities_requiring_grad[label] = input_quantity
+            input_quantity = Quantity(q[label].get_expanded_values(), q.grid)
             transformed_input = self.input_transformations[label](input_quantity, q)
             inputs_tensor[:,i] = transformed_input.values.flatten()
 
@@ -148,9 +124,9 @@ class QuantityModel:
         transformed_output = self.output_transformation(output, q)
 
         if get_intermediates:
-            return inputs_tensor, output, transformed_output, quantities_requiring_grad
+            return inputs_tensor, output, transformed_output
 
-        return transformed_output, quantities_requiring_grad
+        return transformed_output
 
     def apply_to_all(
             self,
@@ -245,7 +221,7 @@ def get_extended_q(
     for model_name, model in models.items():
         assert not model_name in q, model_name
         model.set_requires_grad(models_require_grad)
-        q[model_name], _ = model.apply(q)
+        q[model_name] = model.apply(q)
 
     for model_parameter_name, model_parameter in model_parameters.items():
         assert not model_parameter_name in q, model_parameter_name

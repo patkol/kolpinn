@@ -111,7 +111,7 @@ class Batcher:
             assert not model_name in extended_q, model_name
             model_batches = []
             for q in self.get_all():
-                model_batch, _ = model.apply(q)
+                model_batch = model.apply(q)
                 model_batches.append(model_batch)
             extended_q[model_name] = grid_quantities.combine_quantity(
                 model_batches,
