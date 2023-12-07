@@ -14,22 +14,3 @@ def get_next_weights_index(output_labels, data_path: str = ''):
         index += 1
 
     return index
-
-def load_model_parameters(
-        model_parameters: dict[str,torch.tensor],
-        loaded_weights_index: Optional[int],
-        data_path: str = '',
-    ):
-    if loaded_weights_index is None:
-        return
-
-    for model_parameter_name, model_parameter in model_parameters.items():
-        path = get_weights_path(loaded_weights_index, model_parameter_name, data_path)
-        with open(path, 'r') as f:
-            value = eval(f.read())
-        model_parameters[model_parameter_name] = torch.tensor(
-            value,
-            dtype=model_parameter.dtype,
-            requires_grad=True,
-        )
-        print('Loaded parameter "', model_parameter_name, '" at ' + path)

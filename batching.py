@@ -42,9 +42,9 @@ class Batcher:
             indices.sort()
             indices_dict[batch_dimension] = indices
 
-        return self._get_q_grid(indices_dict)
+        return self._get_q(indices_dict)
 
-    def _get_q_grid(self, indices_dict: dict):
+    def _get_q(self, indices_dict: dict):
         grid = Subgrid(self.grid_full, indices_dict, copy_all=False)
         q = restrict_quantities(self.q_full, grid)
 
@@ -72,7 +72,7 @@ class Batcher:
             indices_dict = copy.copy(self.additional_indices_dict)
             for batch_dimension, indices_list in zip(self.batch_dimensions, indices_lists_batch):
                 indices_dict[batch_dimension] = indices_list
-            batches.append(self._get_q_grid(indices_dict))
+            batches.append(self._get_q(indices_dict))
 
         return batches
 
@@ -80,7 +80,6 @@ class Batcher:
     def get_extended_q(
             self,
             models: dict,
-            model_parameters: Optional[dict[str,torch.tensor]] = None,
             diffable_quantities: Optional[dict[str,Callable]] = None,
             quantities_requiring_grad_labels: list[str] = None,
         ):
@@ -88,8 +87,6 @@ class Batcher:
         Get the quantities including the evaluated models.
         """
 
-        if model_parameters is None:
-            model_parameters = {}
         if diffable_quantities is None:
             diffable_quantities = {}
         if quantities_requiring_grad_labels is None:
@@ -115,13 +112,6 @@ class Batcher:
                 model_batches.append(model_batch)
             extended_q[model_name] = grid_quantities.combine_quantity(
                 model_batches,
-                self.grid_full,
-            )
-
-        for model_parameter_name, model_parameter in model_parameters.items():
-            assert not model_parameter_name in extended_q, model_parameter_name
-            extended_q[model_parameter_name] = grid_quantities.Quantity(
-                model_parameter,
                 self.grid_full,
             )
 

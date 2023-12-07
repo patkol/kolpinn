@@ -96,6 +96,8 @@ class Subgrid(Grid):
                 + textwrap.indent(f'indices_dict={self.indices_dict}),\n', '    ')
                 + ')')
 
+
+
 class Quantity:
     def __init__(
             self,
@@ -431,7 +433,6 @@ class QuantitiesFactory:
             )
 
         return quantities_dict
-
 
 
 def get_quantity(

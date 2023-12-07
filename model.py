@@ -2,7 +2,7 @@
 The network architecture and functions to interface with it
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Union, Iterable
 import copy
 import torch
 from torch import nn
@@ -11,6 +11,66 @@ from .io import get_weights_path
 from . import grid_quantities
 from .grid_quantities import Grid, Quantity, combine_quantity, QuantityDict
 from .batching import Batcher
+
+
+
+class Model:
+    """
+    Model.apply(q: QuantityDict) -> Quantity of type `output_dtype`
+    The model is parametrized by `parameters` of type `model_dtype`.
+    """
+    def __init__(
+            self,
+            parameters: Iterable[torch.Tensor],
+            *,
+            model_dtype,
+            output_dtype,
+        ):
+        self.parameters = parameters
+        self.model_dtype = model_dtype
+        self.output_dtype = output_dtype
+        self.check()
+
+    def apply(q: QuantityDict, **kwargs):
+        raise Exception('`Model` is an ABC')
+
+    def set_requires_grad(self, requires_grad: bool):
+        for parameter in self.parameters:
+            parameter.requires_grad_(requires_grad)
+
+    def set_train(self):
+        pass
+
+    def set_eval(self):
+        pass
+
+    def load(self, path: str):
+        loaded_parameters = torch.load(path)
+        for parameter, loaded_parameter in zip(self.parameters, loaded_parameters):
+            old_requires_grad = parameter.requires_grad
+            parameter.requires_grad_(False)
+            parameter[...] = loaded_parameter
+            parameter.requires_grad_(old_requires_grad)
+
+    def save(self, path: str):
+        torch.save(self.parameters, path)
+
+    def check(self):
+        for parameter in self.parameters:
+            assert parameter.dtype is self.model_dtype
+
+class ConstModel(Model):
+    def __init__(self, value, *, model_dtype, output_dtype):
+        parameters = [torch.tensor(value, dtype=model_dtype)]
+        super().__init__(
+            parameters,
+            model_dtype=model_dtype,
+            output_dtype=output_dtype,
+        )
+
+    def apply(self, q: QuantityDict):
+        return Quantity(self.parameters[0].type(self.output_dtype), q.grid)
+
 
 class SimpleNetwork(nn.Module):
     def __init__(
@@ -60,8 +120,7 @@ class SimpleNetwork(nn.Module):
 
         return outputs
 
-
-class QuantityModel:
+class SimpleNNModel(Model):
     def __init__(
             self,
             inputs_labels: list,
@@ -71,7 +130,7 @@ class QuantityModel:
             *,
             n_neurons_per_hidden_layer: int,
             n_hidden_layers: int,
-            network_dtype,
+            model_dtype,
             output_dtype,
             device: str,
         ):
@@ -94,10 +153,13 @@ class QuantityModel:
             n_outputs = self.n_outputs,
             n_neurons_per_hidden_layer = n_neurons_per_hidden_layer,
             n_hidden_layers = n_hidden_layers,
-            dtype = network_dtype,
+            dtype = model_dtype,
         ).to(device)
-        self.network_dtype = network_dtype
-        self.output_dtype = output_dtype
+        super().__init__(
+            list(self.network.parameters()),
+            model_dtype = model_dtype,
+            output_dtype = output_dtype,
+        )
 
     def apply(
             self,
@@ -108,7 +170,7 @@ class QuantityModel:
         # inputs_tensor[gridpoint, input quantity]
         inputs_tensor = torch.zeros(
             (q.grid.n_points, self.n_inputs),
-            dtype = self.network_dtype,
+            dtype = self.model_dtype,
         )
         for (i, label) in enumerate(self.inputs_labels):
             input_quantity = Quantity(q[label].get_expanded_values(), q.grid)
@@ -159,18 +221,14 @@ class QuantityModel:
 
         return inputs_tensor, output, transformed_output
 
-    def load(self, path: str):
-        self.network.load_state_dict(torch.load(path))
+    def set_train(self):
+        self.network.train()
 
-    def save(self, path: str):
-        torch.save(self.network.state_dict(), path)
-
-    def set_requires_grad(self, b: bool):
-        for parameter in self.network.parameters():
-            parameter.requires_grad_(b)
+    def set_eval(self):
+        self.network.eval()
 
 def load_weights(
-        models: dict[str,QuantityModel],
+        models: dict[str,SimpleNNModel],
         loaded_weights_index: Optional[int],
         data_path: str = '',
     ):
@@ -188,7 +246,6 @@ def get_extended_q(
         *,
         models: dict = None,
         models_require_grad: bool = False,
-        model_parameters: Optional[dict[str,torch.tensor]] = None,
         diffable_quantities: Optional[dict[str,Callable]] = None,
         quantities_requiring_grad_labels: list[str] = None,
     ):
@@ -198,8 +255,6 @@ def get_extended_q(
 
     if models is None:
         models = {}
-    if model_parameters is None:
-        model_parameters = {}
     if diffable_quantities is None:
         diffable_quantities = {}
     if quantities_requiring_grad_labels is None:
@@ -222,13 +277,6 @@ def get_extended_q(
         assert not model_name in q, model_name
         model.set_requires_grad(models_require_grad)
         q[model_name] = model.apply(q)
-
-    for model_parameter_name, model_parameter in model_parameters.items():
-        assert not model_parameter_name in q, model_parameter_name
-        q[model_parameter_name] = grid_quantities.Quantity(
-            model_parameter,
-            q.grid,
-        )
 
     for diffable_quantity_name, diffable_quantity_function in diffable_quantities.items():
         q[diffable_quantity_name] = diffable_quantity_function(q)

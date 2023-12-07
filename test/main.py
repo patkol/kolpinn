@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 """
-Solving dy/dx = cos(x), x in (-8pi, +8pi), x = 1 on Boundaries.
-Exact solution: y(x) = sin(x) + 1
+Solving dy/dx = c*cos(x), x in (-2pi, +2pi), y = 1 on Boundaries, y'(0) = 1.
+Exact solution: y(x) = sin(x) + 1, c = 1
 """
 
 import pdb
@@ -15,7 +15,7 @@ from kolpinn.io import get_weights_path
 from kolpinn import grid_quantities
 from kolpinn.grid_quantities import Grid, Quantity
 from kolpinn.batching import Batcher
-from kolpinn.model import QuantityModel, load_weights
+from kolpinn.model import ConstModel, SimpleNNModel, load_weights
 from kolpinn.training import Trainer
 
 import parameters as params
@@ -34,18 +34,23 @@ torch.set_default_dtype(params.si_dtype)
 
 # Model
 
-y_model = QuantityModel(
+y_model = SimpleNNModel(
     ['x'],
     {'x': lambda x, y: x},
     lambda y, q: y,
     params.activation_function,
     n_neurons_per_hidden_layer = params.n_neurons_per_hidden_layer,
     n_hidden_layers = params.n_hidden_layers,
-    network_dtype = params.model_dtype,
+    model_dtype = params.model_dtype,
     output_dtype = params.si_dtype,
     device = params.device,
 )
-models = {'y': y_model}
+c_model = ConstModel(
+    3,
+    model_dtype = params.model_dtype,
+    output_dtype = params.si_dtype,
+)
+models = {'y': y_model, 'c': c_model}
 load_weights(models, params.loaded_weights_index)
 
 
@@ -60,10 +65,16 @@ grid_training = Grid({
     'x': torch.linspace(params.X_LEFT, params.X_RIGHT, params.N_x_training),
 })
 grids_training = grid_training.get_subgrids(conditions_dicts, copy_all=True)
+grids_training['zero'] = Grid({
+    'x': torch.tensor([0.]),
+})
 grid_validation = Grid({
     'x': torch.linspace(params.X_LEFT, params.X_RIGHT, params.N_x_validation),
 })
 grids_validation = grid_validation.get_subgrids(conditions_dicts, copy_all=True)
+grids_validation['zero'] = Grid({
+    'x': torch.tensor([0.]),
+})
 
 qs_training = physics.quantities_factory.get_quantities_dict(grids_training)
 qs_validation = physics.quantities_factory.get_quantities_dict(grids_validation)
@@ -72,11 +83,13 @@ batchers_training = {
     'bulk': Batcher(qs_training['bulk'], grids_training['bulk'], ['x'], [params.batch_size_x]),
     'left': Batcher(qs_training['left'], grids_training['left'], [], []),
     'right': Batcher(qs_training['right'], grids_training['right'], [], []),
+    'zero': Batcher(qs_training['zero'], grids_training['zero'], [], []),
 }
 batchers_validation = {
     'bulk': Batcher(qs_validation['bulk'], grids_validation['bulk'], ['x'], [1]),
     'left': Batcher(qs_validation['left'], grids_validation['left'], [], []),
     'right': Batcher(qs_validation['right'], grids_validation['right'], [], []),
+    'zero': Batcher(qs_validation['zero'], grids_validation['zero'], [], []),
 }
 
 

@@ -30,17 +30,13 @@ class Trainer:
             Optimizer,
             learn_rate,
             *,
-            model_parameters: Optional[dict[str,torch.tensor]] = None,
             diffable_quantities: Optional[dict[str,Callable]] = None,
         ):
 
-        if model_parameters is None:
-            model_parameters = {}
         if diffable_quantities is None:
             diffable_quantities = {}
 
         self.models = models
-        self.model_parameters = model_parameters
         self.diffable_quantities = diffable_quantities
         self.batchers_training = batchers_training
         self.batchers_validation = batchers_validation
@@ -49,9 +45,7 @@ class Trainer:
 
         all_parameters = []
         for model in models.values():
-            all_parameters += list(model.network.parameters())
-        for model_parameter in model_parameters.values():
-            all_parameters.append(model_parameter)
+            all_parameters += model.parameters
         self.optimizer = Optimizer(all_parameters, lr = learn_rate)
 
         self.n_losses = sum(len(loss_fn) for loss_fn in loss_functions.values())
@@ -69,7 +63,7 @@ class Trainer:
         self.saved_weights_index = get_next_weights_index(self.models.keys())
         print('saved_weights_index =', self.saved_weights_index)
 
-    def train(self, n_steps, report_each, *, max_time):
+    def train(self, n_steps, report_each, *, max_time = None):
         if max_time is None:
             max_time = float('inf')
         self.training_start_time = time.perf_counter()
@@ -77,7 +71,7 @@ class Trainer:
         self.get_validation_losses(save_if_best = n_steps > 0)
 
         for model in self.models.values():
-            model.network.train()
+            model.set_train()
 
         for step_index in range(1, n_steps+1):
             self.step()
@@ -102,7 +96,6 @@ class Trainer:
             self.loss_functions,
             self.quantities_requiring_grad_dict,
             models_require_grad = True, # TODO not always the case for LBFGS
-            model_parameters = self.model_parameters,
             diffable_quantities = self.diffable_quantities,
         )
 
@@ -128,7 +121,6 @@ class Trainer:
             self.loss_functions,
             self.quantities_requiring_grad_dict,
             models_require_grad = False,
-            model_parameters = self.model_parameters,
             diffable_quantities = self.diffable_quantities,
         )
 
@@ -162,13 +154,7 @@ class Trainer:
         if save_if_best and (self.min_validation_loss == None
                              or numpy_losses[-1] < self.min_validation_loss):
             # Saving at step 0 as well to reserve the `saved_weights_index`
-            for model_name, model in self.models.items():
-                model.save(get_weights_path(self.saved_weights_index, model_name))
-            for model_parameter_name, model_parameter in self.model_parameters.items():
-                path = get_weights_path(self.saved_weights_index, model_parameter_name)
-                with open(path, 'w') as f:
-                    f.write(str(model_parameter.item()))
-
+            self.save_models()
             self.min_validation_loss = numpy_losses[-1]
 
         return losses
@@ -185,3 +171,7 @@ class Trainer:
         loss.backward() # OPTIM: not always necessary for lbfgs
 
         return loss
+
+    def save_models(self):
+            for model_name, model in self.models.items():
+                model.save(get_weights_path(self.saved_weights_index, model_name))

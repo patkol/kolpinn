@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 import torch
 
@@ -101,6 +102,7 @@ def save_lineplot(
 
     if path_prefix is None:
         path_prefix = 'plots/'
+    os.makedirs(path_prefix, exist_ok=True)
     path = path_prefix + f'{quantity_label}_{x_dimension}_{lines_dimension}_lineplot.pdf'
 
     fig, ax = plt.subplots()
@@ -198,6 +200,7 @@ def save_heatmap(
 
     if path_prefix is None:
         path_prefix = 'plots/'
+    os.makedirs(path_prefix, exist_ok=True)
     path = path_prefix + f'{quantity_label}_{x_dimension}_vs_{y_dimension}_heatmap.pdf'
 
     fig, ax = plt.subplots()
@@ -224,6 +227,7 @@ def save_heatmap(
 def save_training_history_plot(trainer: training.Trainer, path_prefix = None):
     if path_prefix is None:
         path_prefix = f'plots/{trainer.saved_weights_index:04d}/'
+    os.makedirs(path_prefix, exist_ok=True)
     path = path_prefix + 'training.pdf'
 
     fig, ax = plt.subplots()
@@ -259,6 +263,7 @@ def save_loss_plots(
 
     if path_prefix is None:
         path_prefix = f'plots/{trainer.saved_weights_index:04d}/'
+    os.makedirs(path_prefix, exist_ok=True)
 
     losses = trainer.get_validation_losses(save_if_best = False)
     for loss_label, loss in losses.items():

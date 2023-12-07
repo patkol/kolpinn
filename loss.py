@@ -4,18 +4,17 @@ import torch
 from . import grid_quantities
 from .grid_quantities import Grid, Quantity, QuantityDict
 from .batching import Batcher
-from .model import QuantityModel
+from .model import Model
 
 
 def get_losses(
-        models: dict[str,QuantityModel],
+        models: dict[str,Model],
         q: QuantityDict,
         loss_functions: dict[str,Callable],
         quantities_requiring_grad_labels: list[str],
         *,
         models_require_grad: bool,
         loss_quantities: Optional[dict[str,Quantity]] = None,
-        model_parameters: Optional[dict[str,torch.tensor]] = None,
         diffable_quantities: Optional[dict[str,Callable]] = None,
     ):
     """
@@ -28,8 +27,6 @@ def get_losses(
 
     if loss_quantities is None:
         loss_quantities = {}
-    if model_parameters is None:
-        model_parameters = {}
     if diffable_quantities is None:
         diffable_quantities = {}
 
@@ -46,10 +43,6 @@ def get_losses(
     for model_name, model in models.items():
         model.set_requires_grad(models_require_grad)
         q[model_name] = model.apply(q)
-
-    for model_parameter_name, model_parameter in model_parameters.items():
-        model_parameter.requires_grad_(models_require_grad)
-        q[model_parameter_name] = Quantity(model_parameter, q.grid)
 
     for diffable_quantity_name, diffable_quantity_function in diffable_quantities.items():
         q[diffable_quantity_name] = diffable_quantity_function(q)
@@ -68,13 +61,12 @@ def get_losses(
 
 
 def get_batch_losses(
-        models: dict[str,QuantityModel],
+        models: dict[str,Model],
         batchers: dict[str,Batcher],
         loss_functions: dict[str,dict[str,Callable]],
         quantities_requiring_grad_dict: dict[str,list[str]],
         *,
         models_require_grad: bool,
-        model_parameters: Optional[dict[str,torch.tensor]] = None,
         diffable_quantities: Optional[dict[str,Callable]] = None,
     ):
     """
@@ -97,7 +89,6 @@ def get_batch_losses(
             quantities_requiring_grad_dict[batcher_name],
             models_require_grad = models_require_grad,
             loss_quantities = loss_quantities,
-            model_parameters = model_parameters,
             diffable_quantities = diffable_quantities,
         )
 
@@ -105,13 +96,12 @@ def get_batch_losses(
 
 
 def get_full_losses(
-        models: dict[str,QuantityModel],
+        models: dict[str,Model],
         batchers: dict[str,Batcher],
         loss_functions: dict[str,dict[str,Callable]],
         quantities_requiring_grad_dict: dict[str,list[str]],
         *,
         models_require_grad: bool,
-        model_parameters: Optional[dict[str,torch.tensor]] = None,
         diffable_quantities: Optional[dict[str,Callable]] = None,
     ):
     """
@@ -132,7 +122,6 @@ def get_full_losses(
                 loss_functions[batcher_name],
                 quantities_requiring_grad_dict[batcher_name],
                 models_require_grad = models_require_grad,
-                model_parameters = model_parameters,
                 diffable_quantities = diffable_quantities,
             )
             for loss_name, loss_quantity in batch_loss_quantities.items():
