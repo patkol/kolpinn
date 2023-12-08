@@ -11,11 +11,11 @@ import time
 import numpy as np
 import torch
 
-from kolpinn.io import get_weights_path
+from kolpinn.io import get_next_parameters_index
 from kolpinn import grid_quantities
 from kolpinn.grid_quantities import Grid, Quantity
 from kolpinn.batching import Batcher
-from kolpinn.model import ConstModel, SimpleNNModel, load_weights
+from kolpinn.model import ConstModel, SimpleNNModel
 from kolpinn.training import Trainer
 
 import parameters as params
@@ -51,7 +51,6 @@ c_model = ConstModel(
     output_dtype = params.si_dtype,
 )
 models = {'y': y_model, 'c': c_model}
-load_weights(models, params.loaded_weights_index)
 
 
 # Coordinates
@@ -103,7 +102,10 @@ trainer = Trainer(
     loss.quantities_requiring_grad_dict,
     params.Optimizer,
     params.learn_rate,
+    saved_parameters_index = get_next_parameters_index(),
+    name = 'trainer',
 )
+trainer.load(params.loaded_parameters_index)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@ import copy
 import torch
 from torch import nn
 
-from .io import get_weights_path
 from . import grid_quantities
 from .grid_quantities import Grid, Quantity, combine_quantity, QuantityDict
 from .batching import Batcher
@@ -45,19 +44,23 @@ class Model:
         pass
 
     def load(self, path: str):
-        loaded_parameters = torch.load(path)
-        for parameter, loaded_parameter in zip(self.parameters, loaded_parameters):
-            old_requires_grad = parameter.requires_grad
-            parameter.requires_grad_(False)
-            parameter[...] = loaded_parameter
-            parameter.requires_grad_(old_requires_grad)
+        self.replace_parameters(torch.load(path))
 
     def save(self, path: str):
         torch.save(self.parameters, path)
 
+    def replace_parameters(self, new_parameters: Iterable[torch.Tensor]):
+        assert len(self.parameters) == len(new_parameters)
+        for parameter, new_parameter in zip(self.parameters, new_parameters):
+            requires_grad = parameter.requires_grad
+            parameter.requires_grad_(False)
+            parameter[...] = new_parameter
+            parameter.requires_grad_(requires_grad)
+
     def check(self):
         for parameter in self.parameters:
             assert parameter.dtype is self.model_dtype
+
 
 class ConstModel(Model):
     def __init__(self, value, *, model_dtype, output_dtype):
@@ -227,18 +230,6 @@ class SimpleNNModel(Model):
     def set_eval(self):
         self.network.eval()
 
-def load_weights(
-        models: dict[str,SimpleNNModel],
-        loaded_weights_index: Optional[int],
-        data_path: str = '',
-    ):
-    if loaded_weights_index is None:
-        return
-
-    for model_name, model in models.items():
-        weights_path = get_weights_path(loaded_weights_index, model_name, data_path)
-        model.load(weights_path)
-        print("Loaded " + weights_path)
 
 # TODO: Code duplication in loss.get_losses and batching.get_extended_q
 def get_extended_q(

@@ -7,14 +7,14 @@ device = 'cuda'
 si_dtype = torch.float64
 
 # Training
-n_training_steps = 1000
+n_training_steps = 2000
 report_each = 500
 Optimizer = torch.optim.AdamW
-learn_rate = 1e-2
+learn_rate = 1e-2 # Overwritten by a reloaded optimizer
 loss_function = lambda x: (x**2).mean()
 
 # Model
-loaded_weights_index = 33
+loaded_parameters_index = 1
 n_neurons_per_hidden_layer = 10
 n_hidden_layers = 5
 activation_function = torch.nn.SiLU()

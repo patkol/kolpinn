@@ -226,7 +226,7 @@ def save_heatmap(
 
 def save_training_history_plot(trainer: training.Trainer, path_prefix = None):
     if path_prefix is None:
-        path_prefix = f'plots/{trainer.saved_weights_index:04d}/'
+        path_prefix = f'plots/{trainer.saved_parameters_index:04d}/'
     os.makedirs(path_prefix, exist_ok=True)
     path = path_prefix + 'training.pdf'
 
@@ -262,7 +262,7 @@ def save_loss_plots(
     """
 
     if path_prefix is None:
-        path_prefix = f'plots/{trainer.saved_weights_index:04d}/'
+        path_prefix = f'plots/{trainer.saved_parameters_index:04d}/'
     os.makedirs(path_prefix, exist_ok=True)
 
     losses = trainer.get_validation_losses(save_if_best = False)

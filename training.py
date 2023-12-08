@@ -1,9 +1,10 @@
 from typing import Callable, Optional
+import os
 import time
 import numpy as np
 import torch
 
-from .io import get_next_weights_index, get_weights_path
+from .io import get_next_parameters_index, get_parameters_path
 from .loss import get_batch_losses, get_full_losses
 
 
@@ -30,6 +31,8 @@ class Trainer:
             Optimizer,
             learn_rate,
             *,
+            saved_parameters_index,
+            name,
             diffable_quantities: Optional[dict[str,Callable]] = None,
         ):
 
@@ -42,6 +45,8 @@ class Trainer:
         self.batchers_validation = batchers_validation
         self.loss_functions = loss_functions
         self.quantities_requiring_grad_dict = quantities_requiring_grad_dict
+        self.saved_parameters_index = saved_parameters_index
+        self.name = name
 
         all_parameters = []
         for model in models.values():
@@ -60,8 +65,7 @@ class Trainer:
             self.loss_names += batcher_loss_functions.keys()
         self.loss_names += ['Total']
 
-        self.saved_weights_index = get_next_weights_index(self.models.keys())
-        print('saved_weights_index =', self.saved_weights_index)
+        print('saved_parameters_index =', self.saved_parameters_index)
 
     def train(self, n_steps, report_each, *, max_time = None):
         if max_time is None:
@@ -153,8 +157,8 @@ class Trainer:
         # Save
         if save_if_best and (self.min_validation_loss == None
                              or numpy_losses[-1] < self.min_validation_loss):
-            # Saving at step 0 as well to reserve the `saved_weights_index`
-            self.save_models()
+            # Saving at step 0 as well to reserve the `saved_parameters_index`
+            self.save()
             self.min_validation_loss = numpy_losses[-1]
 
         return losses
@@ -172,6 +176,22 @@ class Trainer:
 
         return loss
 
-    def save_models(self):
-            for model_name, model in self.models.items():
-                model.save(get_weights_path(self.saved_weights_index, model_name))
+    def save(self):
+        path = get_parameters_path(self.saved_parameters_index)
+        os.makedirs(path, exist_ok=True)
+        save_dict = {
+            'models': dict((model_name, model.parameters)
+                           for model_name, model in self.models.items()),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+        }
+        torch.save(save_dict, path + self.name + '.pth')
+
+    def load(self, parameters_index):
+        if parameters_index is None:
+            return
+
+        path = get_parameters_path(parameters_index)
+        save_dict = torch.load(path + self.name + '.pth')
+        for model_name, model in self.models.items():
+            model.replace_parameters(save_dict['models'][model_name])
+        self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
