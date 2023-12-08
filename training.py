@@ -33,14 +33,9 @@ class Trainer:
             *,
             saved_parameters_index,
             name,
-            diffable_quantities: Optional[dict[str,Callable]] = None,
         ):
 
-        if diffable_quantities is None:
-            diffable_quantities = {}
-
         self.models = models
-        self.diffable_quantities = diffable_quantities
         self.batchers_training = batchers_training
         self.batchers_validation = batchers_validation
         self.loss_functions = loss_functions
@@ -100,7 +95,6 @@ class Trainer:
             self.loss_functions,
             self.quantities_requiring_grad_dict,
             models_require_grad = True, # TODO not always the case for LBFGS
-            diffable_quantities = self.diffable_quantities,
         )
 
         # History
@@ -125,7 +119,6 @@ class Trainer:
             self.loss_functions,
             self.quantities_requiring_grad_dict,
             models_require_grad = False,
-            diffable_quantities = self.diffable_quantities,
         )
 
         # History

@@ -75,6 +75,18 @@ class ConstModel(Model):
         return Quantity(self.parameters[0].type(self.output_dtype), q.grid)
 
 
+class FunctionModel(Model):
+    def __init__(self, function, *, output_dtype=None):
+        """
+        function(q) -> Quantity
+        """
+        self.function = function
+        super().__init__([], model_dtype=None, output_dtype=output_dtype)
+
+    def apply(self, q: QuantityDict):
+        return self.function(q).set_dtype(self.output_dtype)
+
+
 class SimpleNetwork(nn.Module):
     def __init__(
             self,
@@ -237,7 +249,6 @@ def get_extended_q(
         *,
         models: dict = None,
         models_require_grad: bool = False,
-        diffable_quantities: Optional[dict[str,Callable]] = None,
         quantities_requiring_grad_labels: list[str] = None,
     ):
     """
@@ -246,8 +257,6 @@ def get_extended_q(
 
     if models is None:
         models = {}
-    if diffable_quantities is None:
-        diffable_quantities = {}
     if quantities_requiring_grad_labels is None:
         quantities_requiring_grad_labels = []
 
@@ -268,9 +277,6 @@ def get_extended_q(
         assert not model_name in q, model_name
         model.set_requires_grad(models_require_grad)
         q[model_name] = model.apply(q)
-
-    for diffable_quantity_name, diffable_quantity_function in diffable_quantities.items():
-        q[diffable_quantity_name] = diffable_quantity_function(q)
 
     for quantity_requiring_grad_label in quantities_requiring_grad_labels:
         q[quantity_requiring_grad_label] = unexpanded_quantities[quantity_requiring_grad_label]

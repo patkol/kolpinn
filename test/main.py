@@ -15,7 +15,7 @@ from kolpinn.io import get_next_parameters_index
 from kolpinn import grid_quantities
 from kolpinn.grid_quantities import Grid, Quantity
 from kolpinn.batching import Batcher
-from kolpinn.model import ConstModel, SimpleNNModel
+from kolpinn.model import ConstModel, FunctionModel, SimpleNNModel
 from kolpinn.training import Trainer
 
 import parameters as params
@@ -50,7 +50,8 @@ c_model = ConstModel(
     model_dtype = params.model_dtype,
     output_dtype = params.si_dtype,
 )
-models = {'y': y_model, 'c': c_model}
+cos_model = FunctionModel(lambda q: q['x'].transform(torch.cos))
+models = {'y': y_model, 'c': c_model, 'cos(x)': cos_model}
 
 
 # Coordinates

@@ -14,7 +14,7 @@ learn_rate = 1e-2 # Overwritten by a reloaded optimizer
 loss_function = lambda x: (x**2).mean()
 
 # Model
-loaded_parameters_index = 1
+loaded_parameters_index = 5
 n_neurons_per_hidden_layer = 10
 n_hidden_layers = 5
 activation_function = torch.nn.SiLU()

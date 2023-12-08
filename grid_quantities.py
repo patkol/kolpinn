@@ -358,6 +358,9 @@ class Quantity:
         return self
 
     def set_dtype(self, new_dtype):
+        if new_dtype is None:
+            return self
+
         self.values = self.values.to(new_dtype)
         self.dtype = new_dtype
 

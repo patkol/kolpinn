@@ -76,19 +76,16 @@ class Batcher:
 
         return batches
 
-    # TODO: Code duplication in loss.get_losses
+    # TODO: Code duplication in loss.get_losses (There are differences: Batching in model eval)
     def get_extended_q(
             self,
             models: dict,
-            diffable_quantities: Optional[dict[str,Callable]] = None,
             quantities_requiring_grad_labels: list[str] = None,
         ):
         """
         Get the quantities including the evaluated models.
         """
 
-        if diffable_quantities is None:
-            diffable_quantities = {}
         if quantities_requiring_grad_labels is None:
             quantities_requiring_grad_labels = []
 
@@ -113,11 +110,6 @@ class Batcher:
             extended_q[model_name] = grid_quantities.combine_quantity(
                 model_batches,
                 self.grid_full,
-            )
-
-        for diffable_quantity_name, diffable_quantity_function in diffable_quantities.items():
-            extended_q[diffable_quantity_name] = diffable_quantity_function(
-                extended_q,
             )
 
         for quantity_requiring_grad_label in quantities_requiring_grad_labels:

@@ -10,7 +10,7 @@ def get_derivative_loss(q, *, with_grad):
         retain_graph=with_grad,
         create_graph=with_grad,
     )
-    residual = y_dx - q['c'] * q['x'].transform(torch.cos)
+    residual = y_dx - q['c'] * q['cos(x)']
 
     return params.loss_function(residual)
 
