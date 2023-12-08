@@ -2,7 +2,7 @@
 
 import copy
 import typing
-from typing import Optional
+from typing import Optional, Iterable
 import textwrap
 import math
 import torch
@@ -511,6 +511,18 @@ def combine_quantity(quantity_list: list, grid: Grid):
     assert torch.all(covered)
 
     return Quantity(values, grid)
+
+
+def combine_quantities(qs_in: Iterable[QuantityDict], grid: Grid):
+    q_combined = QuantityDict(grid)
+    for label in qs_in[0].keys():
+        q_combined[label] = combine_quantity(
+            [q_in[label] for q_in in qs_in],
+            grid,
+        )
+
+    return q_combined
+
 
 
 

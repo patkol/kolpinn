@@ -4,7 +4,7 @@ import torch
 from . import grid_quantities
 from .grid_quantities import Grid, Quantity, QuantityDict
 from .batching import Batcher
-from .model import Model
+from .model import Model, get_extended_q
 
 
 def get_losses(
@@ -27,29 +27,18 @@ def get_losses(
     if loss_quantities is None:
         loss_quantities = {}
 
-    unexpanded_quantities = {}
-    for quantity_requiring_grad_label in quantities_requiring_grad_labels:
-        unexpanded_quantity = q[quantity_requiring_grad_label]
-        unexpanded_quantities[quantity_requiring_grad_label] = unexpanded_quantity
-        q[quantity_requiring_grad_label] = Quantity(
-            unexpanded_quantity.get_expanded_values(),
-            unexpanded_quantity.grid,
-        )
-        q[quantity_requiring_grad_label].set_requires_grad(True)
-
-    for model_name, model in models.items():
-        model.set_requires_grad(models_require_grad)
-        q[model_name] = model.apply(q)
+    extended_q = get_extended_q(
+        q,
+        models=models,
+        models_require_grad = models_require_grad,
+        quantities_requiring_grad_labels = quantities_requiring_grad_labels,
+    )
 
     for loss_name, loss_function in loss_functions.items():
         loss_quantities[loss_name] = loss_function(
-            q,
+            extended_q,
             with_grad = models_require_grad,
         )
-
-    for quantity_requiring_grad_label in quantities_requiring_grad_labels:
-        #q[quantity_requiring_grad_label].set_requires_grad(False)
-        q[quantity_requiring_grad_label] = unexpanded_quantities[quantity_requiring_grad_label]
 
     return loss_quantities
 

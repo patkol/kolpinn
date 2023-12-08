@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from . import grid_quantities
-from .grid_quantities import Grid, Quantity, combine_quantity, QuantityDict
+from .grid_quantities import Grid, Quantity, QuantityDict, combine_quantity, combine_quantities
 from .batching import Batcher
 
 
@@ -243,7 +243,6 @@ class SimpleNNModel(Model):
         self.network.eval()
 
 
-# TODO: Code duplication in loss.get_losses and batching.get_extended_q
 def get_extended_q(
         q_in: QuantityDict,
         *,
@@ -278,7 +277,24 @@ def get_extended_q(
         model.set_requires_grad(models_require_grad)
         q[model_name] = model.apply(q)
 
-    for quantity_requiring_grad_label in quantities_requiring_grad_labels:
-        q[quantity_requiring_grad_label] = unexpanded_quantities[quantity_requiring_grad_label]
-
     return q
+
+
+def get_extended_q_batchwise(
+        batcher: Batcher,
+        models: dict,
+        quantities_requiring_grad_labels: list[str] = None,
+    ):
+    """
+    Get the quantities including the evaluated models.
+    """
+
+    qs_batch = []
+    for q_batch in batcher.get_all():
+        qs_batch.append(get_extended_q(
+            q_batch,
+            models = models,
+            quantities_requiring_grad_labels = quantities_requiring_grad_labels,
+        ))
+
+    return combine_quantities(qs_batch, batcher.grid_full)
