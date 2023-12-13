@@ -58,3 +58,21 @@ def exchange_dims(tensor: torch.Tensor, dim_1, dim_2):
     permuted_tensor = tensor.permute(permutation)
 
     return permuted_tensor
+
+def remove_duplicates(l: list):
+    """
+    Return a list excluding exact duplicates in the sense of 'is'.
+    """
+
+    out = []
+    for i in range(len(l)):
+        duplicate = False
+        for j in range(i):
+            if l[j] is l[i]:
+                duplicate = True
+                break
+        if not duplicate:
+            out.append(l[i])
+
+    return out
+

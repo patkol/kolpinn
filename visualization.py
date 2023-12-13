@@ -228,7 +228,7 @@ def save_training_history_plot(trainer: training.Trainer, path_prefix = None):
     if path_prefix is None:
         path_prefix = f'plots/{trainer.saved_parameters_index:04d}/'
     os.makedirs(path_prefix, exist_ok=True)
-    path = path_prefix + 'training.pdf'
+    path = path_prefix + 'training_' + trainer.name + '.pdf'
 
     fig, ax = plt.subplots()
     ax.set_prop_cycle(None)
@@ -249,28 +249,3 @@ def save_training_history_plot(trainer: training.Trainer, path_prefix = None):
     ax.legend()
     fig.savefig(path)
     plt.close(fig)
-
-
-def save_loss_plots(
-        trainer: training.Trainer,
-        x_dimension,
-        lines_dimension = None,
-        path_prefix = None,
-    ):
-    """
-    Plot the average loss per batch.
-    """
-
-    if path_prefix is None:
-        path_prefix = f'plots/{trainer.saved_parameters_index:04d}/'
-    os.makedirs(path_prefix, exist_ok=True)
-
-    losses = trainer.get_validation_losses(save_if_best = False)
-    for loss_label, loss in losses.items():
-        save_lineplot(
-            loss,
-            loss_label,
-            x_dimension,
-            lines_dimension,
-            path_prefix,
-        )

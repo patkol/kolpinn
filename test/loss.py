@@ -1,6 +1,9 @@
 import torch
 
+from kolpinn.model import FunctionModel
+
 import parameters as params
+
 
 def get_derivative_loss(q, *, with_grad):
     # q['x'] should require grad
@@ -30,10 +33,10 @@ def get_zero_loss(q, *, with_grad):
     return params.loss_function(residual)
 
 loss_functions = {
-    'bulk': {'derivative_loss': get_derivative_loss},
-    'left': {'left_boundary_loss': get_boundary_loss},
-    'right': {'right_boundary_loss': get_boundary_loss},
-    'zero': {'zero_loss': get_zero_loss},
+    'bulk': {'derivative_loss': FunctionModel(get_derivative_loss, with_grad=False)},
+    'left': {'left_boundary_loss': FunctionModel(get_boundary_loss, with_grad=False)},
+    'right': {'right_boundary_loss': FunctionModel(get_boundary_loss, with_grad=False)},
+    'zero': {'zero_loss': FunctionModel(get_zero_loss, with_grad=False)},
 }
 quantities_requiring_grad_dict = {
     'bulk': ['x'],

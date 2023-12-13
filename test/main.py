@@ -52,6 +52,17 @@ c_model = ConstModel(
 )
 cos_model = FunctionModel(lambda q: q['x'].transform(torch.cos))
 models = {'y': y_model, 'c': c_model, 'cos(x)': cos_model}
+# The losses are added later
+models_dict = {
+    'bulk': {'y': y_model, 'c': c_model, 'cos(x)': cos_model},
+    'left': {'y': y_model},
+    'right': {'y': y_model},
+    'zero': {'y': y_model},
+}
+used_losses = {}
+for batcher_name, loss_models in loss.loss_functions.items():
+    models_dict[batcher_name].update(loss_models)
+    used_losses[batcher_name] = loss_models.keys()
 
 
 # Coordinates
@@ -96,13 +107,13 @@ batchers_validation = {
 # Training
 
 trainer = Trainer(
-    models,
-    batchers_training,
-    batchers_validation,
-    loss.loss_functions,
-    loss.quantities_requiring_grad_dict,
-    params.Optimizer,
-    params.learn_rate,
+    models_dict = models_dict,
+    batchers_training = batchers_training,
+    batchers_validation = batchers_validation,
+    used_losses = used_losses,
+    quantities_requiring_grad_dict = loss.quantities_requiring_grad_dict,
+    Optimizer = params.Optimizer,
+    learn_rate = params.learn_rate,
     saved_parameters_index = get_next_parameters_index(),
     name = 'trainer',
 )
@@ -111,4 +122,4 @@ trainer.load(params.loaded_parameters_index)
 
 if __name__ == "__main__":
     trainer.train(params.n_training_steps, params.report_each)
-    visualize(batchers_validation, models, trainer)
+    visualize(trainer)

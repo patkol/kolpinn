@@ -76,15 +76,16 @@ class ConstModel(Model):
 
 
 class FunctionModel(Model):
-    def __init__(self, function, *, output_dtype=None):
+    def __init__(self, function, *, output_dtype=None, **kwargs):
         """
         function(q) -> Quantity
         """
         self.function = function
+        self.kwargs = kwargs
         super().__init__([], model_dtype=None, output_dtype=output_dtype)
 
     def apply(self, q: QuantityDict):
-        return self.function(q).set_dtype(self.output_dtype)
+        return self.function(q, **(self.kwargs)).set_dtype(self.output_dtype)
 
 
 class SimpleNetwork(nn.Module):
@@ -247,7 +248,7 @@ def get_extended_q(
         q_in: QuantityDict,
         *,
         models: dict = None,
-        models_require_grad: bool = False,
+        models_require_grad: bool,
         quantities_requiring_grad_labels: list[str] = None,
     ):
     """
@@ -282,7 +283,9 @@ def get_extended_q(
 
 def get_extended_q_batchwise(
         batcher: Batcher,
+        *,
         models: dict,
+        models_require_grad: bool,
         quantities_requiring_grad_labels: list[str] = None,
     ):
     """
@@ -294,7 +297,30 @@ def get_extended_q_batchwise(
         qs_batch.append(get_extended_q(
             q_batch,
             models = models,
+            models_require_grad = models_require_grad,
             quantities_requiring_grad_labels = quantities_requiring_grad_labels,
         ))
 
     return combine_quantities(qs_batch, batcher.grid_full)
+
+
+def get_extended_qs(
+        batchers: dict[str,Batcher],
+        *,
+        models_dict: dict[str,dict[str,Model]],
+        models_require_grad: bool,
+        quantities_requiring_grad_dict: dict[str,list[str]],
+        full_grid: bool,
+    ):
+
+    qs = {}
+    q_function = get_extended_q_batchwise if full_grid else get_extended_q
+    for batcher_name, batcher in batchers.items():
+        qs[batcher_name] = q_function(
+            batcher if full_grid else batcher(),
+            models = models_dict[batcher_name],
+            models_require_grad = models_require_grad,
+            quantities_requiring_grad_labels = quantities_requiring_grad_dict[batcher_name],
+        )
+
+    return qs

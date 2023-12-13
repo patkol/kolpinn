@@ -4,17 +4,18 @@ import time
 import numpy as np
 import torch
 
+from .mathematics import remove_duplicates
 from .io import get_next_parameters_index, get_parameters_path
-from .loss import get_batch_losses, get_full_losses
+from .batching import Batcher
+from .model import Model, get_extended_qs
 
 
-def get_mean_numpy_losses(losses):
+def get_numpy_losses(losses):
     """
     losses[loss_name] = Quantity
     """
 
-    numpy_losses = np.array([loss.mean().values.item()
-                             for loss in losses.values()])
+    numpy_losses = np.array([loss.values.item() for loss in losses.values()])
     numpy_losses = np.append(numpy_losses, [np.sum(numpy_losses)])
 
     return numpy_losses
@@ -23,32 +24,42 @@ def get_mean_numpy_losses(losses):
 class Trainer:
     def __init__(
             self,
-            models,
-            batchers_training,
-            batchers_validation,
-            loss_functions: dict[str,dict[str,Callable]],
+            *,
+            models_dict: dict[str,dict[str,Model]],
+            batchers_training: dict[str,Batcher],
+            batchers_validation: dict[str,Batcher],
+            used_losses: dict[str,list[str]],
             quantities_requiring_grad_dict: dict,
             Optimizer,
-            learn_rate,
-            *,
-            saved_parameters_index,
-            name,
+            learn_rate: float,
+            saved_parameters_index: int,
+            name: str,
         ):
+        """
+        The loss models referred to by used_losses should have a
+        with_grad keyword, it will be controlled by the trainer.
+        """
 
-        self.models = models
+        self.models_dict = models_dict
         self.batchers_training = batchers_training
         self.batchers_validation = batchers_validation
-        self.loss_functions = loss_functions
+        self.used_losses = used_losses
         self.quantities_requiring_grad_dict = quantities_requiring_grad_dict
         self.saved_parameters_index = saved_parameters_index
         self.name = name
 
+        self.batcher_names = models_dict.keys()
+        assert set(self.batchers_training) == set(self.batcher_names)
+        assert set(self.batchers_validation) == set(self.batcher_names)
+
         all_parameters = []
-        for model in models.values():
-            all_parameters += model.parameters
+        for batcher_name in self.batcher_names:
+            for model in models_dict[batcher_name].values():
+                all_parameters += model.parameters
+        all_parameters = remove_duplicates(all_parameters)
         self.optimizer = Optimizer(all_parameters, lr = learn_rate)
 
-        self.n_losses = sum(len(loss_fn) for loss_fn in loss_functions.values())
+        self.n_losses = sum(len(losses) for losses in used_losses.values())
         self.training_loss_history = np.zeros((0, self.n_losses+1))
         self.training_loss_times = np.zeros((0,))
         self.validation_loss_history = np.zeros((0, self.n_losses+1))
@@ -56,8 +67,8 @@ class Trainer:
         self.training_start_time = None
         self.min_validation_loss = None
         self.loss_names = [] # In the same order as the training histories
-        for batcher_loss_functions in loss_functions.values():
-            self.loss_names += batcher_loss_functions.keys()
+        for losses in used_losses.values():
+            self.loss_names += losses
         self.loss_names += ['Total']
 
         print('saved_parameters_index =', self.saved_parameters_index)
@@ -69,8 +80,9 @@ class Trainer:
         print(f"[{0:>5d}/{n_steps:>5d}]")
         self.get_validation_losses(save_if_best = n_steps > 0)
 
-        for model in self.models.values():
-            model.set_train()
+        for batcher_name in self.batcher_names:
+            for model in self.models_dict[batcher_name].values():
+                model.set_train()
 
         for step_index in range(1, n_steps+1):
             self.step()
@@ -88,17 +100,42 @@ class Trainer:
             self.closure()
             self.optimizer.step()
 
-    def get_training_losses(self):
-        losses = get_batch_losses(
-            self.models,
-            self.batchers_training,
-            self.loss_functions,
-            self.quantities_requiring_grad_dict,
-            models_require_grad = True, # TODO not always the case for LBFGS
+
+    def _extract_losses(self, qs):
+        losses = {}
+        for batcher_name, batcher in self.batchers_training.items():
+            q = qs[batcher_name]
+            for loss_name in self.used_losses[batcher_name]:
+                losses[loss_name] = q[loss_name].mean()
+
+        return losses
+
+
+    def set_losses_kwargs(self, **kwargs):
+        for batcher_name in self.batcher_names:
+            for loss_name in self.used_losses[batcher_name]:
+                for label, arg in kwargs.items():
+                    self.models_dict[batcher_name][loss_name].kwargs[label] = arg
+
+    def get_extended_qs(self, *, for_training=False):
+        qs = get_extended_qs(
+            self.batchers_training if for_training else self.batchers_validation,
+            models_dict = self.models_dict,
+            models_require_grad = for_training, # OPTIM: not always the case for LBFGS
+            quantities_requiring_grad_dict = self.quantities_requiring_grad_dict,
+            full_grid = not for_training,
         )
 
+        return qs
+
+
+    def get_training_losses(self):
+        self.set_losses_kwargs(with_grad=True)
+        qs = self.get_extended_qs(for_training = True)
+        losses = self._extract_losses(qs)
+
         # History
-        numpy_losses = get_mean_numpy_losses(losses)
+        numpy_losses = get_numpy_losses(losses)
         self.training_loss_history = np.append(
             self.training_loss_history,
             [numpy_losses],
@@ -113,16 +150,12 @@ class Trainer:
         return losses
 
     def get_validation_losses(self, save_if_best):
-        losses = get_full_losses(
-            self.models,
-            self.batchers_validation,
-            self.loss_functions,
-            self.quantities_requiring_grad_dict,
-            models_require_grad = False,
-        )
+        self.set_losses_kwargs(with_grad=False)
+        qs = self.get_extended_qs(for_training = False)
+        losses = self._extract_losses(qs)
 
         # History
-        numpy_losses = get_mean_numpy_losses(losses)
+        numpy_losses = get_numpy_losses(losses)
         self.validation_loss_history = np.append(
             self.validation_loss_history,
             [numpy_losses],
@@ -156,6 +189,7 @@ class Trainer:
 
         return losses
 
+
     def closure(self):
         """
         Calculation of the loss used for training
@@ -169,15 +203,23 @@ class Trainer:
 
         return loss
 
+
     def save(self):
         path = get_parameters_path(self.saved_parameters_index)
         os.makedirs(path, exist_ok=True)
+
+        model_parameters_dict = {}
+        for batcher_name in self.batcher_names:
+            model_parameters_dict[batcher_name] = {}
+            for model_name, model in self.models_dict[batcher_name].items():
+                model_parameters_dict[batcher_name][model_name] = model.parameters
         save_dict = {
-            'models': dict((model_name, model.parameters)
-                           for model_name, model in self.models.items()),
+            'model_parameters_dict': model_parameters_dict,
             'optimizer_state_dict': self.optimizer.state_dict(),
         }
+
         torch.save(save_dict, path + self.name + '.pth')
+
 
     def load(self, parameters_index):
         if parameters_index is None:
@@ -185,6 +227,9 @@ class Trainer:
 
         path = get_parameters_path(parameters_index)
         save_dict = torch.load(path + self.name + '.pth')
-        for model_name, model in self.models.items():
-            model.replace_parameters(save_dict['models'][model_name])
+        for batcher_name in self.batcher_names:
+            for model_name, model in self.models_dict[batcher_name].items():
+                self.models_dict[batcher_name][model_name].replace_parameters(
+                    save_dict['model_parameters_dict'][batcher_name][model_name]
+                )
         self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
