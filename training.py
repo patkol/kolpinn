@@ -74,8 +74,6 @@ class Trainer:
             self.loss_names += losses
         self.loss_names += ['Total']
 
-        print('saved_parameters_index =', self.saved_parameters_index)
-
     def train(
             self,
             *,
@@ -84,16 +82,14 @@ class Trainer:
             max_time = None,
             min_loss = None,
         ):
-        if max_time is None:
-            max_time = float('inf')
+        if max_n_steps <= 0 or max_time <= 0 or min_loss == float('inf'):
+            return
+
+        print(f'\n\nTraining {self.name}\n')
 
         self.training_start_time = time.perf_counter()
         step_index = 0
-        self.validate(
-            step_index,
-            max_n_steps,
-            save_if_best = max_n_steps is None or max_n_steps > 0,
-        )
+        self.validate(step_index, max_n_steps, save_if_best = True)
 
         for batcher_name in self.batcher_names:
             for model in self.models_dict[batcher_name].values():
@@ -259,8 +255,6 @@ class Trainer:
         if not self.scheduler is None:
             save_dict['scheduler_state_dict'] = self.scheduler.state_dict()
 
-        breakpoint()
-
         torch.save(save_dict, path + self.name + '.pth')
 
 
@@ -280,3 +274,12 @@ class Trainer:
         self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
         if 'scheduler_state_dict' in save_dict and not self.scheduler is None:
              self.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
+
+
+    def load_models(self, loaded_models_dict):
+        for batcher_name in self.batcher_names:
+            for model_name, model in self.models_dict[batcher_name].items():
+                self.models_dict[batcher_name][model_name].replace_parameters(
+                    loaded_models_dict[batcher_name][model_name].parameters,
+                )
+

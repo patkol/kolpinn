@@ -225,8 +225,12 @@ def save_heatmap(
 
 
 def save_training_history_plot(trainer: training.Trainer, path_prefix = None):
+    if len(trainer.training_loss_times) == 0:
+        return
+
     if path_prefix is None:
         path_prefix = f'plots/{trainer.saved_parameters_index:04d}/'
+
     os.makedirs(path_prefix, exist_ok=True)
     path = path_prefix + 'training_' + trainer.name + '.pdf'
 
