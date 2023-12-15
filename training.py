@@ -73,25 +73,53 @@ class Trainer:
 
         print('saved_parameters_index =', self.saved_parameters_index)
 
-    def train(self, n_steps, report_each, *, max_time = None):
+    def train(
+            self,
+            *,
+            report_each = None,
+            max_n_steps = None,
+            max_time = None,
+            min_loss = None,
+        ):
         if max_time is None:
             max_time = float('inf')
+
         self.training_start_time = time.perf_counter()
-        print(f"[{0:>5d}/{n_steps:>5d}]")
-        self.get_validation_losses(save_if_best = n_steps > 0)
+        step_index = 0
+        self.validate(step_index, max_n_steps, save_if_best = max_n_steps > 0)
 
         for batcher_name in self.batcher_names:
             for model in self.models_dict[batcher_name].values():
                 model.set_train()
 
-        for step_index in range(1, n_steps+1):
+        while True:
+            step_index += 1
+
             self.step()
-            if step_index % report_each == 0 or step_index == n_steps:
-                print(f"[{step_index:>5d}/{n_steps:>5d}]")
-                self.get_validation_losses(save_if_best = True)
-                if time.perf_counter() - self.training_start_time >= max_time:
-                    print("Stopping on time")
-                    break
+
+            stop = False
+            if max_n_steps is not None and step_index >= max_n_steps:
+                print(f'Step {max_n_steps} reached, stopping')
+                stop = True
+            time_passed = time.perf_counter() - self.training_start_time
+            if (max_time is not None
+                and time_passed >= max_time):
+                print(f'{time_passed:.1f}s passed, stopping')
+                stop = True
+
+            if step_index % report_each == 0 or stop:
+                self.validate(step_index, max_n_steps, save_if_best = True)
+
+            if self.validation_loss_history[-1][-1] <= min_loss:
+                print(f'Validation loss {self.validation_loss_history[-1][-1]} reached, stopping')
+                stop = True
+            if stop:
+                break
+
+    def validate(self, step_index, max_n_steps, *, save_if_best):
+        max_n_steps_string = '  -  ' if max_n_steps is None else f'{max_n_steps:>5d}'
+        print(f'[{step_index:>5d}/{max_n_steps_string}]')
+        self.get_validation_losses(save_if_best = save_if_best)
 
     def step(self):
         if type(self.optimizer) is torch.optim.LBFGS:
@@ -212,6 +240,8 @@ class Trainer:
         for batcher_name in self.batcher_names:
             model_parameters_dict[batcher_name] = {}
             for model_name, model in self.models_dict[batcher_name].items():
+                if len(model.parameters) == 0:
+                    break
                 model_parameters_dict[batcher_name][model_name] = model.parameters
         save_dict = {
             'model_parameters_dict': model_parameters_dict,
@@ -229,6 +259,8 @@ class Trainer:
         save_dict = torch.load(path + self.name + '.pth')
         for batcher_name in self.batcher_names:
             for model_name, model in self.models_dict[batcher_name].items():
+                if len(model.parameters) == 0:
+                    break
                 self.models_dict[batcher_name][model_name].replace_parameters(
                     save_dict['model_parameters_dict'][batcher_name][model_name]
                 )

@@ -51,8 +51,7 @@ c_model = ConstModel(
     output_dtype = params.si_dtype,
 )
 cos_model = FunctionModel(lambda q: q['x'].transform(torch.cos))
-models = {'y': y_model, 'c': c_model, 'cos(x)': cos_model}
-# The losses are added later
+
 models_dict = {
     'bulk': {'y': y_model, 'c': c_model, 'cos(x)': cos_model},
     'left': {'y': y_model},
@@ -121,5 +120,10 @@ trainer.load(params.loaded_parameters_index)
 
 
 if __name__ == "__main__":
-    trainer.train(params.n_training_steps, params.report_each)
+    trainer.train(
+        report_each = params.report_each,
+        max_n_steps = params.max_n_training_steps,
+        max_time = params.max_time,
+        min_loss = params.min_loss,
+    )
     visualize(trainer)
