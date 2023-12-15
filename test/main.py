@@ -113,6 +113,7 @@ trainer = Trainer(
     quantities_requiring_grad_dict = loss.quantities_requiring_grad_dict,
     Optimizer = params.Optimizer,
     learn_rate = params.learn_rate,
+    Scheduler = params.Scheduler,
     saved_parameters_index = get_next_parameters_index(),
     name = 'trainer',
 )

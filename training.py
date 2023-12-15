@@ -32,6 +32,7 @@ class Trainer:
             quantities_requiring_grad_dict: dict,
             Optimizer,
             learn_rate: float,
+            Scheduler = None,
             saved_parameters_index: int,
             name: str,
         ):
@@ -58,6 +59,8 @@ class Trainer:
                 all_parameters += model.parameters
         all_parameters = remove_duplicates(all_parameters)
         self.optimizer = Optimizer(all_parameters, lr = learn_rate)
+        self.scheduler = (None if Scheduler is None
+                          else Scheduler(self.optimizer))
 
         self.n_losses = sum(len(losses) for losses in used_losses.values())
         self.training_loss_history = np.zeros((0, self.n_losses+1))
@@ -86,7 +89,11 @@ class Trainer:
 
         self.training_start_time = time.perf_counter()
         step_index = 0
-        self.validate(step_index, max_n_steps, save_if_best = max_n_steps > 0)
+        self.validate(
+            step_index,
+            max_n_steps,
+            save_if_best = max_n_steps is None or max_n_steps > 0,
+        )
 
         for batcher_name in self.batcher_names:
             for model in self.models_dict[batcher_name].values():
@@ -120,6 +127,8 @@ class Trainer:
         max_n_steps_string = '  -  ' if max_n_steps is None else f'{max_n_steps:>5d}'
         print(f'[{step_index:>5d}/{max_n_steps_string}]')
         self.get_validation_losses(save_if_best = save_if_best)
+        if not self.scheduler is None:
+            self.scheduler.step(self.validation_loss_history[-1][-1])
 
     def step(self):
         if type(self.optimizer) is torch.optim.LBFGS:
@@ -247,6 +256,10 @@ class Trainer:
             'model_parameters_dict': model_parameters_dict,
             'optimizer_state_dict': self.optimizer.state_dict(),
         }
+        if not self.scheduler is None:
+            save_dict['scheduler_state_dict'] = self.scheduler.state_dict()
+
+        breakpoint()
 
         torch.save(save_dict, path + self.name + '.pth')
 
@@ -265,3 +278,5 @@ class Trainer:
                     save_dict['model_parameters_dict'][batcher_name][model_name]
                 )
         self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
+        if 'scheduler_state_dict' in save_dict and not self.scheduler is None:
+             self.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
