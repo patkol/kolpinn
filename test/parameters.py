@@ -14,8 +14,9 @@ max_time = 60
 min_loss = 0.00001
 report_each = 200
 Optimizer = torch.optim.AdamW
+optimizer_kwargs = {'lr': 1e-2} # Overwritten by a reloaded optimizer
 Scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau
-learn_rate = 1e-2 # Overwritten by a reloaded optimizer
+scheduler_kwargs = {'factor': 0.5}
 loss_function = lambda x: x.transform(mathematics.complex_abs2)
 
 # Model

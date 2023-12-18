@@ -31,8 +31,9 @@ class Trainer:
             used_losses: dict[str,list[str]],
             quantities_requiring_grad_dict: dict,
             Optimizer,
-            learn_rate: float,
+            optimizer_kwargs: dict,
             Scheduler = None,
+            scheduler_kwargs: Optional[dict] = None,
             saved_parameters_index: int,
             name: str,
         ):
@@ -40,6 +41,9 @@ class Trainer:
         The loss models referred to by used_losses should have a
         with_grad keyword, it will be controlled by the trainer.
         """
+
+        if scheduler_kwargs is None:
+            scheduler_kwargs = {}
 
         self.models_dict = models_dict
         self.batchers_training = batchers_training
@@ -58,9 +62,9 @@ class Trainer:
             for model in models_dict[batcher_name].values():
                 all_parameters += model.parameters
         all_parameters = remove_duplicates(all_parameters)
-        self.optimizer = Optimizer(all_parameters, lr = learn_rate)
+        self.optimizer = Optimizer(all_parameters, **optimizer_kwargs)
         self.scheduler = (None if Scheduler is None
-                          else Scheduler(self.optimizer))
+                          else Scheduler(self.optimizer, **scheduler_kwargs))
 
         self.n_losses = sum(len(losses) for losses in used_losses.values())
         self.training_loss_history = np.zeros((0, self.n_losses+1))
@@ -82,24 +86,17 @@ class Trainer:
             max_time = None,
             min_loss = None,
         ):
-        if max_n_steps <= 0 or max_time <= 0 or min_loss == float('inf'):
-            return
 
         print(f'\n\nTraining {self.name}\n')
 
         self.training_start_time = time.perf_counter()
         step_index = 0
-        self.validate(step_index, max_n_steps, save_if_best = True)
 
         for batcher_name in self.batcher_names:
             for model in self.models_dict[batcher_name].values():
                 model.set_train()
 
         while True:
-            step_index += 1
-
-            self.step()
-
             stop = False
             if max_n_steps is not None and step_index >= max_n_steps:
                 print(f'Step {max_n_steps} reached, stopping')
@@ -116,8 +113,15 @@ class Trainer:
             if self.validation_loss_history[-1][-1] <= min_loss:
                 print(f'Validation loss {self.validation_loss_history[-1][-1]} reached, stopping')
                 stop = True
+
             if stop:
                 break
+
+            step_index += 1
+            self.step()
+
+
+
 
     def validate(self, step_index, max_n_steps, *, save_if_best):
         max_n_steps_string = '  -  ' if max_n_steps is None else f'{max_n_steps:>5d}'

@@ -220,6 +220,8 @@ class Quantity:
             assert not hasattr(other, '__len__'), (type(other), other)
 
             dtype = self.values.dtype
+            if dtype is torch.bool:
+                dtype = torch.float64 # TODO: 32 bit support
             if isinstance(other, complex) and not dtype in (torch.complex64, torch.complex128):
                 if dtype == torch.float32:
                     dtype = torch.complex64
