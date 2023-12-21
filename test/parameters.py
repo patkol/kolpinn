@@ -9,18 +9,18 @@ device = 'cuda'
 si_dtype = torch.float64
 
 # Training
-max_n_training_steps = 4000
-max_time = 60
-min_loss = 0.00001
+max_n_training_steps = 0
+max_time = 300
+min_loss = 50e-6
 report_each = 200
 Optimizer = torch.optim.AdamW
 optimizer_kwargs = {'lr': 1e-2} # Overwritten by a reloaded optimizer
 Scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau
-scheduler_kwargs = {'factor': 0.5}
-loss_function = lambda x: x.transform(mathematics.complex_abs2)
+scheduler_kwargs = {'factor': 0.2, 'patience': 5}
+loss_function = mathematics.complex_abs2
 
 # Model
-loaded_parameters_index = 22
+loaded_parameters_index = 37
 n_neurons_per_hidden_layer = 10
 n_hidden_layers = 5
 activation_function = torch.nn.SiLU()

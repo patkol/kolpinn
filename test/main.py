@@ -50,7 +50,7 @@ c_model = ConstModel(
     model_dtype = params.model_dtype,
     output_dtype = params.si_dtype,
 )
-cos_model = FunctionModel(lambda q: q['x'].transform(torch.cos))
+cos_model = FunctionModel(lambda q: torch.cos(q['x']))
 
 models_dict = {
     'bulk': {'y': y_model, 'c': c_model, 'cos(x)': cos_model},

@@ -2,7 +2,7 @@
 
 import copy
 import typing
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Union
 import textwrap
 import math
 import torch
@@ -97,162 +97,130 @@ class Subgrid(Grid):
                 + ')')
 
 
-
 class Quantity:
-    def __init__(
-            self,
-            values: torch.Tensor,
-            grid: Grid,
-        ):
+    def __init__(self, values, grid: Grid, **kwargs):
         """
         values[i, j, ...] represents the value at coordinates (i, j, k, ...)
         in the grid (coordinate ordering according to grid.dimensions).
         For dimensions `values` does not depend on it has singleton dimensions.
-        If a 0D tensor is provided it will be reshaped.
         """
 
-        if len(values.size()) == 0:
-            shape = [1] * grid.n_dim
-            values = values.reshape(shape)
+        self.values = torch.as_tensor(values, **kwargs)
 
-        assert len(values.size()) == len(grid.shape), \
+        # Assert that the grid matches the tensor
+        assert len(self.values.size()) == len(grid.shape), \
                f"{values.size()} {grid.shape}"
         for values_size, dimension_size in zip(values.size(), grid.shape):
             assert values_size in (1, dimension_size), \
                    f"values.size(): {values.size()}, grid.shape: {grid.shape}"
 
-        self.values = values
         self.grid = grid
-        self.dtype = values.dtype
+
+    @property
+    def dtype(self):
+        return self.values.dtype
+
+    @property
+    def requires_grad(self):
+        return self.values.requires_grad
+
+    @requires_grad.setter
+    def requires_grad(self, value):
+        self.values.requires_grad = value
+
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        # https://pytorch.org/docs/stable/notes/extending.html
+        if kwargs is None:
+            kwargs = {}
+
+        grids = tuple(arg.grid for arg in args if hasattr(arg, 'grid'))
+        assert len(grids) > 0
+        new_grid = grids[0]
+        for grid in grids:
+            assert grid is new_grid, f'Grid mismatch: {grid} is not {new_grid}'
+
+        new_args = [arg.values if type(arg) is Quantity else arg for arg in args]
+        ret = func(*new_args, **kwargs)
+        out = Quantity(ret, grid = new_grid) if torch.is_tensor(ret) else ret
+
+        return out
 
     def __repr__(self):
-        return ("Quantity(\n"
-                + textwrap.indent(f"{self.values},\n", "    ")
-                + textwrap.indent(f"{self.grid},\n", "    ")
-                + ")")
+        return ('Quantity(\n'
+                + textwrap.indent(f'{self.values},\n', '    ')
+                + textwrap.indent(f'{self.grid},\n', '    ')
+                + ')')
 
     def __neg__(self):
         """Return -self"""
-        return Quantity(-self.values, self.grid)
+        return torch.neg(self)
 
     def __add__(self, other):
         """Return self+other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values + other.values, self.grid)
+        return torch.add(self, other)
 
     def __radd__(self, other):
         """Return other+self"""
-        return self + other
+        return torch.add(other, self)
 
     def __sub__(self, other):
         """Return self-other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values - other.values, self.grid)
+        return torch.sub(self, other)
 
     def __rsub__(self, other):
         """Return other-self"""
-        other = self.get_compatible(other)
-        return Quantity(other.values - self.values, self.grid)
+        return torch.sub(other, self)
 
     def __mul__(self, other):
         """Return self*other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values * other.values, self.grid)
+        return torch.mul(self, other)
 
     def __rmul__(self, other):
         """Return other*self"""
-        return self * other
+        return torch.mul(other, self)
 
     def __truediv__(self, other):
         """Return self/other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values / other.values, self.grid)
+        return torch.true_divide(self, other)
 
     def __rtruediv__(self, other):
         """Return other/self"""
-        other = self.get_compatible(other)
-        return Quantity(other.values / self.values, self.grid)
+        return torch.true_divide(other, self)
 
     def __pow__(self, other):
         """Return self**other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values ** other.values, self.grid)
+        return torch.pow(self, other)
 
     def __rpow__(self, other):
         """Return other**self"""
-        other = self.get_compatible(other)
-        return Quantity(other.values ** self.values, self.grid)
+        return torch.pow(other, self)
 
     def __eq__(self, other):
         """Return self==other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values == other.values, self.grid)
+        return torch.eq(self, other)
 
     def __ge__(self, other):
         """Return self>=other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values >= other.values, self.grid)
+        return torch.ge(self, other)
 
     def __le__(self, other):
         """Return self<=other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values <= other.values, self.grid)
+        return torch.le(self, other)
 
     def __gt__(self, other):
         """Return self>other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values > other.values, self.grid)
+        return torch.gt(self, other)
 
     def __lt__(self, other):
         """Return self<other"""
-        other = self.get_compatible(other)
-        return Quantity(self.values < other.values, self.grid)
-
-    def compatible(self, other) -> bool:
-        return self.grid is other.grid
-
-    def get_compatible(self, other):
-        """
-        `other` can be a scalar, it is then converted to a quantity.
-        """
-        if not type(other) == Quantity:
-            # `other` must be a scalar
-            assert not hasattr(other, '__len__'), (type(other), other)
-
-            dtype = self.values.dtype
-            if dtype is torch.bool:
-                dtype = torch.float64 # TODO: 32 bit support
-            if isinstance(other, complex) and not dtype in (torch.complex64, torch.complex128):
-                if dtype == torch.float32:
-                    dtype = torch.complex64
-                elif dtype == torch.float64:
-                    dtype = torch.complex128
-                else:
-                    raise Exception("Unsupported real datatype")
-
-            device = self.values.device
-            other = get_quantity(
-                torch.tensor(other, dtype=dtype, device=device),
-                [],
-                self.grid,
-            )
-
-        assert self.compatible(other)
-
-        return other
+        return torch.lt(self, other)
 
     def is_singleton_dimension(self, label: str) -> bool:
         return self.values.size(self.grid.index[label]) == 1
 
     def might_depend_on(self, label: str) -> bool:
         return (not self.is_singleton_dimension(label)) or self.grid.dim_size[label] == 1
-
-    def transform(self, function) -> 'Quantity':
-        transformed_values = function(self.values)
-        assert transformed_values.size() == self.values.size(), \
-               f"{transformed_values}, {self.values}"
-
-        return Quantity(transformed_values, self.grid)
 
     def sum_dimension(self, label):
         """Sum over the dimension `label`"""
@@ -271,10 +239,6 @@ class Quantity:
             out = out.sum_dimension(label)
         return out
 
-    def sum_(self):
-        summed_values = torch.sum(self.values)
-        return Quantity(summed_values, self.grid)
-
     def mean_dimension(self, label):
         return (self.sum_dimension(label)
                 / self.grid.dim_size[label])
@@ -285,35 +249,13 @@ class Quantity:
             out = out.mean_dimension(label)
         return out
 
-    def mean(self):
-        mean = torch.mean(self.values)
-        return Quantity(mean, self.grid)
-
     def get_grad(self, input_: 'Quantity', **kwargs) -> 'Quantity':
         """
         kwargs example: retain_graph=True, create_graph=True
         """
-        assert self.compatible(input_)
 
-        grad_function = (mathematics.complex_grad
-                         if torch.is_complex(self.values)
-                         else torch.autograd.grad)
-
-        grad_outputs_dtype = self.dtype
-        if self.dtype == torch.complex64:
-            grad_outputs_dtype = torch.float32
-        elif self.dtype == torch.complex128:
-            grad_outputs_dtype = torch.float64
-
-        grad_tensor = grad_function(
-            outputs = self.values,
-            inputs = input_.values,
-            grad_outputs = torch.ones_like(self.values, dtype=grad_outputs_dtype),
-            **kwargs,
-        )
-
-        if grad_function is torch.autograd.grad:
-            grad_tensor = grad_tensor[0]
+        assert self.grid == input_.grid
+        grad_tensor = mathematics.grad(self.values, input_.values, **kwargs)
 
         return Quantity(grad_tensor, input_.grid)
 
@@ -333,8 +275,8 @@ class Quantity:
 
         return Quantity(restricted_values, subgrid)
 
-    def get_expanded_values(self):
-        return self.values.expand(self.grid.shape)
+    def expand_all_dims(self):
+        return Quantity(self.values.expand(self.grid.shape), self.grid)
 
     def get_tensor(self, dimensions_labels: list[str]):
         """
@@ -347,6 +289,7 @@ class Quantity:
             assert self.might_depend_on(label), \
                    "Quantity not dependent on " + label
             new_index = self.grid.index[label]
+            # IDEA: arbitrary order
             assert new_index > index, \
                    f"Wrong order: {dimensions_labels} vs. {self.grid.dimensions_labels}"
             index = new_index
@@ -354,28 +297,20 @@ class Quantity:
 
         return self.values.squeeze(dimensions_to_squeeze)
 
-    def set_requires_grad(self, b: bool):
-        self.values.requires_grad_(b)
-
-        return self
-
-    def set_dtype(self, new_dtype):
-        if new_dtype is None:
-            return self
-
-        self.values = self.values.to(new_dtype)
-        self.dtype = new_dtype
-
+    def set_dtype(self, *args, **kwargs):
+        self.values = self.values.to(*args, **kwargs)
         return self
 
 
 class QuantityDict(collections.UserDict):
+    """ The values can be quantities, tensors and scalars """
     def __init__(self, grid, *args, **kwargs):
         self.grid = grid
         super().__init__(*args, **kwargs)
 
-    def __setitem__(self, label: str, quantity: Quantity):
-        assert quantity.grid is self.grid, f'\n{quantity.grid}\n{self.grid}'
+    def __setitem__(self, label: str, quantity):
+        assert type(quantity) is not Quantity or quantity.grid is self.grid, \
+                f'\n{quantity.grid}\n{self.grid}'
         super().__setitem__(label, quantity)
 
 
@@ -473,8 +408,16 @@ def get_quantity(
 
 
 
-def combine_quantity(quantity_list: list, grid: Grid):
+def combine_quantity(quantity_list, grid: Grid):
+    """Combine quantities on subgrids of `grid` to a quantity on `grid`"""
+
+    if type(quantity_list[0]) is not Quantity:
+        assert all(quantity == quantity_list[0] for quantity in quantity_list), \
+               quantity_list
+        return quantity_list[0]
+
     dtype = quantity_list[0].dtype
+    # reduced_dimensions_labels: dims that got sliced in the subgrids
     reduced_dimensions_labels = set(quantity_list[0].grid.indices_dict.keys())
 
     values = torch.zeros(grid.shape, dtype=dtype)

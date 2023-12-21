@@ -15,7 +15,7 @@ def get_numpy_losses(losses):
     losses[loss_name] = Quantity
     """
 
-    numpy_losses = np.array([loss.values.item() for loss in losses.values()])
+    numpy_losses = np.array([loss.item() for loss in losses.values()])
     numpy_losses = np.append(numpy_losses, [np.sum(numpy_losses)])
 
     return numpy_losses
@@ -38,8 +38,8 @@ class Trainer:
             name: str,
         ):
         """
-        The loss models referred to by used_losses should have a
-        with_grad keyword, it will be controlled by the trainer.
+        The loss models referred to by `used_losses` should have a
+        `with_grad` keyword, it will be controlled by the trainer.
         """
 
         if scheduler_kwargs is None:
@@ -143,7 +143,7 @@ class Trainer:
         for batcher_name, batcher in self.batchers_training.items():
             q = qs[batcher_name]
             for loss_name in self.used_losses[batcher_name]:
-                losses[loss_name] = q[loss_name].mean()
+                losses[loss_name] = q[loss_name].values.mean()
 
         return losses
 
@@ -234,8 +234,7 @@ class Trainer:
 
         self.optimizer.zero_grad() # OPTIM: not always necessary for lbfgs
         losses = self.get_training_losses()
-        loss_tensors = [loss.values.reshape([]) for loss in losses.values()]
-        loss = sum(loss_tensors)
+        loss = sum(losses.values())
         loss.backward() # OPTIM: not always necessary for lbfgs
 
         return loss

@@ -15,7 +15,7 @@ from .batching import Batcher
 
 class Model:
     """
-    Model.apply(q: QuantityDict) -> Quantity of type `output_dtype`
+    Model.apply(q: QuantityDict) -> Quantity or torch.Tensor of type `output_dtype`
     The model is parametrized by `parameters` of type `model_dtype`.
     """
     def __init__(
@@ -72,7 +72,7 @@ class ConstModel(Model):
         )
 
     def apply(self, q: QuantityDict):
-        return Quantity(self.parameters[0].type(self.output_dtype), q.grid)
+        return self.parameters[0].type(self.output_dtype)
 
 
 class FunctionModel(Model):
@@ -85,6 +85,7 @@ class FunctionModel(Model):
         super().__init__([], model_dtype=None, output_dtype=output_dtype)
 
     def apply(self, q: QuantityDict):
+        # TODO: support scalar / tensor outputs
         return self.function(q, **(self.kwargs)).set_dtype(self.output_dtype)
 
 
@@ -189,7 +190,7 @@ class SimpleNNModel(Model):
             dtype = self.model_dtype,
         )
         for (i, label) in enumerate(self.inputs_labels):
-            input_quantity = Quantity(q[label].get_expanded_values(), q.grid)
+            input_quantity = q[label].expand_all_dims()
             transformed_input = self.input_transformations[label](input_quantity, q)
             inputs_tensor[:,i] = transformed_input.values.flatten()
 
@@ -267,11 +268,8 @@ def get_extended_q(
     for quantity_requiring_grad_label in quantities_requiring_grad_labels:
         unexpanded_quantity = q[quantity_requiring_grad_label]
         unexpanded_quantities[quantity_requiring_grad_label] = unexpanded_quantity
-        q[quantity_requiring_grad_label] = Quantity(
-            unexpanded_quantity.get_expanded_values(),
-            unexpanded_quantity.grid,
-        )
-        q[quantity_requiring_grad_label].set_requires_grad(True)
+        q[quantity_requiring_grad_label] = unexpanded_quantity.expand_all_dims()
+        q[quantity_requiring_grad_label].requires_grad = True
 
     for model_name, model in models.items():
         assert not model_name in q, model_name

@@ -17,7 +17,8 @@ def complex_mse(a, b):
     return abs2(b-a).mean()
 
 def complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
-    """Derives the real and imaginary parts of 'outputs' seperately.
+    """
+    Derives the real and imaginary parts of 'outputs' seperately.
 
     ''torch.autograd.grad'' calculates the Wirtinger derivative instead.
     There is no support for sequences of tensors right now.
@@ -37,6 +38,35 @@ def complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
     )
 
     return grad_real + 1j * grad_imag
+
+def grad(output, input_, **kwargs):
+    """
+    Possibly complex gradient with ones as the `grad_outputs`
+    kwargs example: retain_graph=True, create_graph=True
+    """
+
+    grad_function = (complex_grad
+                     if torch.is_complex(output)
+                     else torch.autograd.grad)
+
+    if output.dtype == torch.complex64:
+        grad_outputs_dtype = torch.float32
+    elif output.dtype == torch.complex128:
+        grad_outputs_dtype = torch.float64
+    else:
+        grad_outputs_dtype = output.dtype
+
+    grad_tensor = grad_function(
+        outputs = output,
+        inputs = input_,
+        grad_outputs = torch.ones_like(output, dtype=grad_outputs_dtype),
+        **kwargs,
+    )
+
+    if grad_function is torch.autograd.grad:
+        grad_tensor = grad_tensor[0]
+
+    return grad_tensor
 
 def generalized_cartesian_prod(*tensors: torch.Tensor):
     """ Generalized to the cases where only one or no tensor is provided. """
