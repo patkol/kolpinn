@@ -58,6 +58,7 @@ models_dict = {
     'right': {'y': y_model},
     'zero': {'y': y_model},
 }
+trained_models_labels = ['y', 'c']
 used_losses = {}
 for batcher_name, loss_models in loss.loss_functions.items():
     models_dict[batcher_name].update(loss_models)
@@ -111,6 +112,7 @@ trainer = Trainer(
     batchers_validation = batchers_validation,
     used_losses = used_losses,
     quantities_requiring_grad_dict = loss.quantities_requiring_grad_dict,
+    trained_models_labels = trained_models_labels,
     Optimizer = params.Optimizer,
     optimizer_kwargs = params.optimizer_kwargs,
     Scheduler = params.Scheduler,

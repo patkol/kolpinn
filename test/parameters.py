@@ -9,7 +9,7 @@ device = 'cuda'
 si_dtype = torch.float64
 
 # Training
-max_n_training_steps = 0
+max_n_training_steps = 4000
 max_time = 300
 min_loss = 50e-6
 report_each = 200
@@ -20,7 +20,7 @@ scheduler_kwargs = {'factor': 0.2, 'patience': 5}
 loss_function = mathematics.complex_abs2
 
 # Model
-loaded_parameters_index = 37
+loaded_parameters_index = None
 n_neurons_per_hidden_layer = 10
 n_hidden_layers = 5
 activation_function = torch.nn.SiLU()

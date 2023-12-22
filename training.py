@@ -29,7 +29,8 @@ class Trainer:
             batchers_training: dict[str,Batcher],
             batchers_validation: dict[str,Batcher],
             used_losses: dict[str,list[str]],
-            quantities_requiring_grad_dict: dict,
+            quantities_requiring_grad_dict: dict[str,list[str]],
+            trained_models_labels: list[str],
             Optimizer,
             optimizer_kwargs: dict,
             Scheduler = None,
@@ -57,10 +58,14 @@ class Trainer:
         assert set(self.batchers_training) == set(self.batcher_names)
         assert set(self.batchers_validation) == set(self.batcher_names)
 
+        self.models_requiring_grad_dict = {}
         all_parameters = []
         for batcher_name in self.batcher_names:
-            for model in models_dict[batcher_name].values():
-                all_parameters += model.parameters
+            self.models_requiring_grad_dict[batcher_name] = []
+            for model_label, model in models_dict[batcher_name].items():
+                if model_label in trained_models_labels:
+                    self.models_requiring_grad_dict[batcher_name].append(model_label)
+                    all_parameters += model.parameters
         all_parameters = remove_duplicates(all_parameters)
         self.optimizer = Optimizer(all_parameters, **optimizer_kwargs)
         self.scheduler = (None if Scheduler is None
@@ -160,6 +165,7 @@ class Trainer:
             models_dict = self.models_dict,
             models_require_grad = for_training, # OPTIM: not always the case for LBFGS
             quantities_requiring_grad_dict = self.quantities_requiring_grad_dict,
+            models_requiring_grad_dict = self.models_requiring_grad_dict,
             full_grid = not for_training,
         )
 
