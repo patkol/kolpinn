@@ -267,7 +267,7 @@ class Trainer:
         torch.save(save_dict, path + self.name + '.pth')
 
 
-    def load(self, parameters_index):
+    def load(self, parameters_index, *, load_optimizer: bool, load_scheduler: bool):
         if parameters_index is None:
             return
 
@@ -280,9 +280,10 @@ class Trainer:
                 self.models_dict[batcher_name][model_name].replace_parameters(
                     save_dict['model_parameters_dict'][batcher_name][model_name]
                 )
-        self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
-        if 'scheduler_state_dict' in save_dict and not self.scheduler is None:
-             self.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
+        if load_optimizer:
+            self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
+        if load_scheduler:
+            self.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
 
 
     def load_models(self, loaded_models_dict):
