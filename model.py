@@ -94,7 +94,7 @@ class FunctionModel(Model):
 
 def get_model(value, *, model_dtype, output_dtype, **kwargs):
     """
-    Returns a ConstModel if `value` is callable and a ConstModel otherwise.
+    Returns a FunctionModel if `value` is callable and a ConstModel otherwise.
     """
 
     if callable(value):
@@ -168,12 +168,18 @@ class SimpleNNModel(Model):
             model_dtype,
             output_dtype,
             device: str,
+            complex_polar: Optional[bool] = None,
+            r_transformation = torch.nn.Softplus(),
+            phi_transformation = lambda x: x,
         ):
         """
         inputs_labels: labels of the quantities that will be input to the network
         The transformations will be applied to the corresponding
             input/output before/after passing it through the network.
             transformation(quantity, q: QuantityDict), only quantity requires grad.
+        complex_polar: If output_dtype is complex, whether the two outputs
+            of the NN should be interpreted as (r,phi) (true) or (Re, Im) (false)
+        r/phi_transformation: Applied to r/phi if complex_polar
         """
 
         self.inputs_labels = inputs_labels
@@ -190,11 +196,38 @@ class SimpleNNModel(Model):
             n_hidden_layers = n_hidden_layers,
             dtype = model_dtype,
         ).to(device)
+        self.complex_polar = complex_polar
+        self.r_transformation = r_transformation
+        self.phi_transformation = phi_transformation
         super().__init__(
             list(self.network.parameters()),
             model_dtype = model_dtype,
             output_dtype = output_dtype,
         )
+
+    def assemble(self, tensor: torch.Tensor):
+        """
+        Input: Real ... x 2 tensor
+        Output: Complex ... tensor
+
+        If self.complex_output is false, the input is directly returned and
+        can have a different shape.
+        """
+
+        assert tensor.dtype in (torch.float32, torch.float64)
+
+        if not self.complex_output:
+            return tensor
+
+        assert tensor.size(-1) == 2
+
+        if self.complex_polar:
+            r = self.r_transformation(tensor[...,0])
+            phi = self.phi_transformation(tensor[...,1])
+            return torch.polar(r, phi)
+
+        # Interpret the two components as the real and imaginary part
+        return torch.view_as_complex(tensor)
 
     def apply(
             self,
@@ -213,11 +246,10 @@ class SimpleNNModel(Model):
             inputs_tensor[:,i] = transformed_input.values.flatten()
 
         outputs_tensor = self.network(inputs_tensor)
-        if self.complex_output:
-            outputs_tensor = torch.view_as_complex(outputs_tensor)
-        outputs_tensor = outputs_tensor.reshape(q.grid.shape)
-        outputs_tensor = outputs_tensor.type(self.output_dtype)
-        output = Quantity(outputs_tensor, q.grid)
+        output = self.assemble(outputs_tensor)
+        output = output.reshape(q.grid.shape)
+        output = output.type(self.output_dtype)
+        output = Quantity(output, q.grid)
         transformed_output = self.output_transformation(output, q)
 
         if get_intermediates:
