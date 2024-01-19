@@ -8,6 +8,7 @@ import copy
 import torch
 from torch import nn
 
+from . import mathematics
 from . import grid_quantities
 from .grid_quantities import Grid, Quantity, QuantityDict, combine_quantity, combine_quantities
 from .batching import Batcher
@@ -32,6 +33,9 @@ class Model:
         self.check()
 
     def apply(q: QuantityDict, **kwargs):
+        """
+        Should return quantity, dict of intermediate quantities
+        """
         raise Exception('`Model` is an ABC')
 
     def set_requires_grad(self, requires_grad: bool):
@@ -75,7 +79,7 @@ class ConstModel(Model):
         )
 
     def apply(self, q: QuantityDict):
-        return self.parameters[0].type(self.output_dtype)
+        return self.parameters[0].type(self.output_dtype), {}
 
 
 class FunctionModel(Model):
@@ -89,7 +93,7 @@ class FunctionModel(Model):
 
     def apply(self, q: QuantityDict):
         # TODO: support scalar / tensor outputs
-        return self.function(q, **(self.kwargs)).set_dtype(self.output_dtype)
+        return self.function(q, **(self.kwargs)).set_dtype(self.output_dtype), {}
 
 
 def get_model(value, *, model_dtype, output_dtype, **kwargs):
@@ -232,61 +236,59 @@ class SimpleNNModel(Model):
     def apply(
             self,
             q: QuantityDict,
-            *,
-            get_intermediates: bool = False,
         ):
+        """
+        Returns output, intermediates where
+            output is the Quantity represented by the NN and
+            intermediates is a dict containing all inputs and
+            outputs of the NN after/before applying transformations.
+        """
+
         # inputs_tensor[gridpoint, input quantity]
         inputs_tensor = torch.zeros(
             (q.grid.n_points, self.n_inputs),
             dtype = self.model_dtype,
         )
+        intermediates = {} # Inputs and outputs of the NN
         for (i, label) in enumerate(self.inputs_labels):
             input_quantity = q[label].expand_all_dims()
-            transformed_input = self.input_transformations[label](input_quantity, q)
-            inputs_tensor[:,i] = transformed_input.values.flatten()
+            input_name = f'nn_input_{label}'
+            intermediates[input_name] = self.input_transformations[label](input_quantity, q)
+            inputs_tensor[:,i] = intermediates[input_name].values.flatten()
 
-        outputs_tensor = self.network(inputs_tensor)
-        output = self.assemble(outputs_tensor)
+        nn_outputs_tensor = self.network(inputs_tensor)
+        output = self.assemble(nn_outputs_tensor)
         output = output.reshape(q.grid.shape)
         output = output.type(self.output_dtype)
         output = Quantity(output, q.grid)
-        transformed_output = self.output_transformation(output, q)
+        output = self.output_transformation(output, q)
 
-        if get_intermediates:
-            return inputs_tensor, output, transformed_output
+        # OPTIM: Skip if not needed
+        for output_index in range(nn_outputs_tensor.size(-1)):
+            nn_output_tensor = nn_outputs_tensor[..., output_index]
+            intermediates[f'nn_output{output_index}'] = Quantity(
+                nn_output_tensor.reshape(q.grid.shape),
+                q.grid,
+            )
 
-        return transformed_output
+        return output, intermediates
 
     def apply_to_all(
             self,
             batcher: Batcher,
-            grid: Grid,
-            get_intermediates: bool = False,
         ):
-        inputs_tensors = []
+        intermediates_lists = {}
         outputs = []
-        transformed_outputs = []
 
         for q, subgrid in batcher.get_all():
-            results = self.apply(q, get_intermediates=get_intermediates)
+            output, intermediates = self.apply(q)
+            outputs.append(output)
+            mathematics.append_dict(intermediates_lists, intermediates)
 
-            if not get_intermediates:
-                transformed_outputs.append(results[0])
-                continue
-
-            inputs_tensors.append(results[0])
-            outputs.append(results[1])
-            transformed_outputs.append(results[2])
-
-        transformed_output = combine_quantity(transformed_outputs, grid)
-
-        if not get_intermediates:
-            return transformed_output
-
-        inputs_tensor = torch.vstack(inputs_tensors)
-        output = combine_quantity(outputs, grid)
-
-        return inputs_tensor, output, transformed_output
+        output = combine_quantity(outputs, batcher.grid_full)
+        intermediates = dict((key, combine_quantity(intermediates_list, batcher.grid_full))
+                             for key, intermediates_list in intermediates_lists.items())
+        return output, intermediates
 
     def set_train(self):
         self.network.train()
@@ -326,8 +328,14 @@ def get_extended_q(
         models[model_label].set_requires_grad(models_require_grad)
 
     for model_name, model in models.items():
+        output, intermediates = model.apply(q)
         assert not model_name in q, model_name
-        q[model_name] = model.apply(q)
+        q[model_name] = output
+        for key, intermediate in intermediates.items():
+            if key in q:
+                assert q[key] == intermediate
+                continue
+            q[key] = intermediate
 
     return q
 

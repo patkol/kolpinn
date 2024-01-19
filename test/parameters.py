@@ -9,7 +9,7 @@ device = 'cuda'
 si_dtype = torch.float64
 
 # Training
-max_n_training_steps = 4000
+max_n_training_steps = 0
 max_time = 300
 min_loss = 50e-6
 report_each = 200
@@ -20,7 +20,10 @@ scheduler_kwargs = {'factor': 0.2, 'patience': 5}
 loss_function = mathematics.complex_abs2
 
 # Model
-loaded_parameters_index = None
+loaded_parameters_index = 43
+# Whether to use the state of the saved optimizer (possibly overwriting optimizer_kwargs)
+load_optimizer = True
+load_scheduler = True
 n_neurons_per_hidden_layer = 10
 n_hidden_layers = 5
 activation_function = torch.nn.SiLU()

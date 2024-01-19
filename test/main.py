@@ -120,7 +120,11 @@ trainer = Trainer(
     saved_parameters_index = get_next_parameters_index(),
     name = 'trainer',
 )
-trainer.load(params.loaded_parameters_index)
+trainer.load(
+    params.loaded_parameters_index,
+    load_optimizer = params.load_optimizer,
+    load_scheduler = params.load_scheduler,
+)
 
 
 if __name__ == "__main__":

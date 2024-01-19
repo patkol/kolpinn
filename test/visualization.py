@@ -9,3 +9,7 @@ def visualize(trainer):
     qs = trainer.get_extended_qs()
     save_lineplot(qs['bulk']['y'], 'y', 'x', path_prefix = path_prefix)
     print(f"c={qs['bulk']['c']}")
+
+    # Plot inputs / outputs
+    save_lineplot(qs['bulk']['nn_input_x'], 'nn_input_x', 'x', path_prefix = path_prefix)
+    save_lineplot(qs['bulk']['nn_output0'], 'nn_output0', 'x', path_prefix = path_prefix)

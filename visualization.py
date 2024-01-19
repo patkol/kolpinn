@@ -50,7 +50,6 @@ def add_lineplot(
     """
 
     quantity_unit_name = format_unit_name(quantity_unit_name)
-    x_unit_name = format_unit_name(x_unit_name)
     lines_unit_name = '' if lines_unit_name is None else ' ' + lines_unit_name
 
     plot_dimensions = [x_dimension]
@@ -220,6 +219,80 @@ def save_heatmap(
         y_unit_name,
         **kwargs,
     )
+    fig.savefig(path)
+    plt.close(fig)
+
+
+def add_complex_polar_plot(
+        ax,
+        quantity: Quantity,
+        quantity_label,
+        x_dimension,
+        lines_dimension = None,
+        quantity_unit = 1,
+        quantity_unit_name = None,
+        lines_unit = 1,
+        lines_unit_name = None,
+        **kwargs,
+    ):
+    """
+    Plot the average values of `quantity`.
+    """
+
+    quantity_unit_name = format_unit_name(quantity_unit_name)
+    lines_unit_name = '' if lines_unit_name is None else ' ' + lines_unit_name
+
+    plot_dimensions = [x_dimension]
+    label = quantity_label + quantity_unit_name
+    if not lines_dimension is None:
+        plot_dimensions.append(lines_dimension)
+        label = list(f'{lines_dimension} = {v/lines_unit:.2f}' + lines_unit_name
+                     for v in quantity.grid[lines_dimension])
+
+    tensor = get_avg_tensor(quantity, plot_dimensions)
+    ax.plot(
+        torch.angle(tensor),
+        torch.abs(tensor) / quantity_unit,
+        label = label,
+        **kwargs,
+    )
+
+
+def save_complex_polar_plot(
+        quantity: Quantity,
+        quantity_label,
+        x_dimension,
+        lines_dimension = None,
+        path_prefix = None,
+        quantity_unit = 1,
+        quantity_unit_name = None,
+        lines_unit = 1,
+        lines_unit_name = None,
+    ):
+    """
+    Plot the average values of `quantity`
+    """
+
+    if path_prefix is None:
+        path_prefix = 'plots/'
+    os.makedirs(path_prefix, exist_ok=True)
+    path = path_prefix + f'{quantity_label}_{lines_dimension}_lineplot.pdf'
+
+    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+    add_complex_polar_plot(
+        ax,
+        quantity,
+        quantity_label,
+        x_dimension,
+        lines_dimension,
+        quantity_unit = quantity_unit,
+        quantity_unit_name = quantity_unit_name,
+        lines_unit = lines_unit,
+        lines_unit_name = lines_unit_name,
+    )
+    ax.grid(visible=True)
+    if not lines_dimension is None:
+        ax.legend()
     fig.savefig(path)
     plt.close(fig)
 
