@@ -115,7 +115,8 @@ class Trainer:
             if step_index % report_each == 0 or stop:
                 self.validate(step_index, max_n_steps, save_if_best = True)
 
-            if self.validation_loss_history[-1][-1] <= min_loss:
+            if (min_loss is not None
+                and self.validation_loss_history[-1][-1] <= min_loss):
                 print(f'Validation loss {self.validation_loss_history[-1][-1]} reached, stopping')
                 stop = True
 

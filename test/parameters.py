@@ -9,9 +9,9 @@ device = 'cuda'
 si_dtype = torch.float64
 
 # Training
-max_n_training_steps = 0
-max_time = 300
-min_loss = 50e-6
+max_n_training_steps = None
+max_time = 20
+min_loss = None
 report_each = 200
 Optimizer = torch.optim.AdamW
 optimizer_kwargs = {'lr': 1e-2} # Overwritten by a reloaded optimizer
@@ -20,7 +20,7 @@ scheduler_kwargs = {'factor': 0.2, 'patience': 5}
 loss_function = mathematics.complex_abs2
 
 # Model
-loaded_parameters_index = 43
+loaded_parameters_index = None
 # Whether to use the state of the saved optimizer (possibly overwriting optimizer_kwargs)
 load_optimizer = True
 load_scheduler = True

@@ -385,26 +385,10 @@ def get_quantity(
     (grid[dimensions_labels[0]][i], grid[dimensions_labels[1]][j], ...)
     """
 
-    if len(tensor.size()) == 0:
-        assert dimensions_labels == []
-        shape = [1] * len(grid.dimensions)
+    tensor_indices = [grid.index[label] for label in dimensions_labels]
+    values = mathematics.expand(tensor, grid.shape, tensor_indices)
 
-    else:
-        shape = []
-        tensor_index = 0
-        for label in grid.dimensions_labels:
-            dim_size = 1
-            if tensor_index < len(dimensions_labels) and label == dimensions_labels[tensor_index]:
-                dim_size = grid.dim_size[label]
-                assert tensor.size(tensor_index) == dim_size
-                tensor_index += 1
-
-            shape.append(dim_size)
-
-        assert tensor_index == len(dimensions_labels), \
-               f"{shape}, {grid.dimensions_labels}, {dimensions_labels}\n Is the dimension order correct?"
-
-    return Quantity(tensor.reshape(shape), grid)
+    return Quantity(values, grid)
 
 
 

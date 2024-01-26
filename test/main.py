@@ -97,7 +97,7 @@ batchers_training = {
     'zero': Batcher(qs_training['zero'], grids_training['zero'], [], []),
 }
 batchers_validation = {
-    'bulk': Batcher(qs_validation['bulk'], grids_validation['bulk'], ['x'], [1]),
+    'bulk': Batcher(qs_validation['bulk'], grids_validation['bulk'], ['x'], [params.batch_size_x]),
     'left': Batcher(qs_validation['left'], grids_validation['left'], [], []),
     'right': Batcher(qs_validation['right'], grids_validation['right'], [], []),
     'zero': Batcher(qs_validation['zero'], grids_validation['zero'], [], []),

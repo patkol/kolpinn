@@ -113,3 +113,34 @@ def append_dict(lists_dict: dict, to_append: dict):
         lists_dict[key].append[to_append[key]]
 
     return lists_dict
+
+def expand(tensor_in: torch.Tensor, shape_target, indices_in):
+    """
+    Expand tensor to the `shape_target`.
+    The dimension `in_dim` in the input tensor will
+    be dimension `indices[in_dim]` in the output tensor.
+    The remaining dimensions of the output tensor will be singletons, independent
+    of the value in `shape_target`.
+    indices_in must be in ascending order.
+    """
+
+    if len(tensor_in.size()) == 0:
+        assert indices_in == []
+        shape_out = [1] * len(shape_target)
+
+    else:
+        shape_out = []
+        in_dim = 0
+        for out_dim in range(len(shape_target)):
+            dim_size_out = 1
+            if in_dim < len(indices_in) and out_dim == indices_in[in_dim]:
+                dim_size_out = shape_target[out_dim]
+                assert tensor_in.size(in_dim) == dim_size_out
+                in_dim += 1
+
+            shape_out.append(dim_size_out)
+
+        assert in_dim == len(indices_in), \
+               f"indices_in={indices_in} might not be ordered"
+
+    return tensor_in.reshape(shape_out)

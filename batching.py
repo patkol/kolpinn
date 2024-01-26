@@ -35,6 +35,9 @@ class Batcher:
         self.batch_sizes = batch_sizes
 
     def __call__(self):
+        """
+        Sample each dimension randomly without replacement and in order
+        """
         indices_dict = copy.copy(self.additional_indices_dict)
         for batch_dimension, batch_size in zip(self.batch_dimensions, self.batch_sizes):
             all_indices = range(self.grid_full.dim_size[batch_dimension])
