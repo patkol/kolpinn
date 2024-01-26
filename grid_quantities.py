@@ -259,6 +259,33 @@ class Quantity:
 
         return Quantity(grad_tensor, input_.grid)
 
+    def get_fd_derivative(self, dimension: str):
+        """
+        Derive along `dimension` using finite differences.
+        On the last gridpoint of `dimension` the derivative is not defined, the
+        value at the second to last one is used.
+        """
+
+        dim_index = self.grid.index[dimension]
+        values_diff = torch.diff(self.values, dim=dim_index)
+        dimension_diff = torch.diff(self.grid[dimension])
+        dimension_diff = mathematics.expand(
+            dimension_diff,
+            values_diff.size(),
+            [dim_index],
+        )
+        derivative_tensor = values_diff / dimension_diff
+
+        # Repeat the rightmost derivative to be compatible with the grid
+        last_slice = [slice(None)] * len(derivative_tensor.size())
+        last_slice[dim_index] = -1
+        derivative_tensor = torch.cat(
+            (derivative_tensor, derivative_tensor[last_slice]),
+            dim_index,
+        )
+
+        return Quantity(derivative_tensor, self.grid)
+
     def restrict(self, subgrid: Grid):
         if subgrid is self.grid:
             return self

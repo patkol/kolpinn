@@ -7,8 +7,11 @@ def visualize(trainer):
     visualization.save_training_history_plot(trainer, path_prefix)
 
     qs = trainer.get_extended_qs()
+    qs['bulk']['x'].get_fd_derivative('x')
     save_lineplot(qs['bulk']['y'], 'y', 'x', path_prefix = path_prefix)
     print(f"c={qs['bulk']['c']}")
+    save_lineplot(qs['bulk']['y'].get_fd_derivative('x'), 'dydx', 'x', path_prefix = path_prefix)
+
 
     # Plot inputs / outputs
     save_lineplot(qs['bulk']['nn_input_x'], 'nn_input_x', 'x', path_prefix = path_prefix)

@@ -8,11 +8,12 @@ import parameters as params
 def get_derivative_loss(q, *, with_grad):
     # q['x'] should require grad
 
-    y_dx = q['y'].get_grad(
-        q['x'],
-        retain_graph=with_grad,
-        create_graph=with_grad,
-    )
+    #y_dx = q['y'].get_grad(
+    #    q['x'],
+    #    retain_graph=with_grad,
+    #    create_graph=with_grad,
+    #)
+    y_dx = q['y'].get_fd_derivative('x')
     residual = y_dx - q['c'] * q['cos(x)']
 
     return params.loss_function(residual)

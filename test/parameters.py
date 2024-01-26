@@ -33,6 +33,6 @@ model_dtype = torch.float32
 X_LEFT = -2 * np.pi
 X_RIGHT = 2 * np.pi
 N_x_training = 1000
-N_x_validation = 170
-batch_size_x = 100
+N_x_validation = 1000
+batch_size_x = 1000
 
