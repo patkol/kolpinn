@@ -269,6 +269,8 @@ class Quantity:
         dim_index = self.grid.index[dimension]
         values_diff = torch.diff(self.values, dim=dim_index)
         dimension_diff = torch.diff(self.grid[dimension])
+        dx1 = dimension_diff[-2] # For extrapolation
+        dx2 = dimension_diff[-1]
         dimension_diff = mathematics.expand(
             dimension_diff,
             values_diff.size(),
@@ -276,11 +278,16 @@ class Quantity:
         )
         derivative_tensor = values_diff / dimension_diff
 
-        # Repeat the rightmost derivative to be compatible with the grid
+        # Extrapolate the rightmost derivative to be compatible with the grid
         last_slice = [slice(None)] * len(derivative_tensor.size())
-        last_slice[dim_index] = -1
+        second_last_slice = copy.copy(last_slice)
+        last_slice[dim_index] = slice(-1, None)
+        second_last_slice[dim_index] = slice(-2,-1)
+        dx21 = dx2 / dx1
+        extrapolated_slice = ((1+dx21) * derivative_tensor[last_slice]
+                              - dx21 * derivative_tensor[second_last_slice])
         derivative_tensor = torch.cat(
-            (derivative_tensor, derivative_tensor[last_slice]),
+            (derivative_tensor, extrapolated_slice),
             dim_index,
         )
 
