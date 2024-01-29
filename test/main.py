@@ -15,7 +15,7 @@ from kolpinn.io import get_next_parameters_index
 from kolpinn import grid_quantities
 from kolpinn.grid_quantities import Grid, Quantity
 from kolpinn.batching import Batcher
-from kolpinn.model import ConstModel, FunctionModel, SimpleNNModel
+from kolpinn.model import ConstModel, FunctionModel, SimpleNNModel, TransformedModel
 from kolpinn.training import Trainer
 
 import parameters as params
@@ -36,14 +36,19 @@ torch.set_default_dtype(params.si_dtype)
 
 y_model = SimpleNNModel(
     ['x'],
-    {'x': lambda x, y: x},
-    lambda y, q: y,
     params.activation_function,
     n_neurons_per_hidden_layer = params.n_neurons_per_hidden_layer,
     n_hidden_layers = params.n_hidden_layers,
     model_dtype = params.model_dtype,
     output_dtype = params.si_dtype,
     device = params.device,
+)
+# Transforming the model is not necessary here, just for testing
+y_model = TransformedModel(
+    y_model,
+    input_transformations = {'x': lambda x, q: x / 2},
+    output_transformation = lambda y, q: y * 2,
+    output_dtype = params.si_dtype,
 )
 c_model = ConstModel(
     3,

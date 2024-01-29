@@ -1,5 +1,7 @@
 import torch
 
+identity = lambda x: x
+
 def transform(x, input_range, output_range):
     """Transform ''x'' in ''input_range'' into the ''output_range''"""
     scale_factor = ((output_range[1] - output_range[0]) /

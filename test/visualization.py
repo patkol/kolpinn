@@ -14,5 +14,6 @@ def visualize(trainer):
 
 
     # Plot inputs / outputs
-    save_lineplot(qs['bulk']['nn_input_x'], 'nn_input_x', 'x', path_prefix = path_prefix)
+    save_lineplot(qs['bulk']['x_transformed'], 'x_transformed', 'x', path_prefix = path_prefix)
     save_lineplot(qs['bulk']['nn_output0'], 'nn_output0', 'x', path_prefix = path_prefix)
+    save_lineplot(qs['bulk']['untransformed_output'], 'untransformed_output', 'x', path_prefix = path_prefix)

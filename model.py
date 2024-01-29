@@ -32,7 +32,7 @@ class Model:
         self.output_dtype = output_dtype
         self.check()
 
-    def apply(q: QuantityDict, **kwargs):
+    def apply(self, q: QuantityDict, **kwargs):
         """
         Should return quantity, dict of intermediate quantities
         """
@@ -163,8 +163,6 @@ class SimpleNNModel(Model):
     def __init__(
             self,
             inputs_labels: list,
-            input_transformations: dict,
-            output_transformation,
             activation_function,
             *,
             n_neurons_per_hidden_layer: int,
@@ -178,9 +176,6 @@ class SimpleNNModel(Model):
         ):
         """
         inputs_labels: labels of the quantities that will be input to the network
-        The transformations will be applied to the corresponding
-            input/output before/after passing it through the network.
-            transformation(quantity, q: QuantityDict), only quantity requires grad.
         complex_polar: If output_dtype is complex, whether the two outputs
             of the NN should be interpreted as (r,phi) (true) or (Re, Im) (false)
         r/phi_transformation: Applied to r/phi if complex_polar
@@ -188,8 +183,6 @@ class SimpleNNModel(Model):
 
         self.inputs_labels = inputs_labels
         self.n_inputs = len(inputs_labels)
-        self.input_transformations = input_transformations
-        self.output_transformation = output_transformation
         self.complex_output = output_dtype in (torch.complex64, torch.complex128)
         self.n_outputs = 2 if self.complex_output else 1
         self.network = SimpleNetwork(
@@ -209,7 +202,7 @@ class SimpleNNModel(Model):
             output_dtype = output_dtype,
         )
 
-    def assemble(self, tensor: torch.Tensor):
+    def _assemble(self, tensor: torch.Tensor):
         """
         Input: Real ... x 2 tensor
         Output: Complex ... tensor
@@ -249,20 +242,17 @@ class SimpleNNModel(Model):
             (q.grid.n_points, self.n_inputs),
             dtype = self.model_dtype,
         )
-        intermediates = {} # Inputs and outputs of the NN
         for (i, label) in enumerate(self.inputs_labels):
             input_quantity = q[label].expand_all_dims()
-            input_name = f'nn_input_{label}'
-            intermediates[input_name] = self.input_transformations[label](input_quantity, q)
-            inputs_tensor[:,i] = intermediates[input_name].values.flatten()
+            inputs_tensor[:,i] = input_quantity.values.flatten()
 
         nn_outputs_tensor = self.network(inputs_tensor)
-        output = self.assemble(nn_outputs_tensor)
+        output = self._assemble(nn_outputs_tensor)
         output = output.reshape(q.grid.shape)
         output = output.type(self.output_dtype)
         output = Quantity(output, q.grid)
-        output = self.output_transformation(output, q)
 
+        intermediates = {}
         # OPTIM: Skip if not needed
         for output_index in range(nn_outputs_tensor.size(-1)):
             nn_output_tensor = nn_outputs_tensor[..., output_index]
@@ -273,28 +263,63 @@ class SimpleNNModel(Model):
 
         return output, intermediates
 
-    def apply_to_all(
-            self,
-            batcher: Batcher,
-        ):
-        intermediates_lists = {}
-        outputs = []
-
-        for q, subgrid in batcher.get_all():
-            output, intermediates = self.apply(q)
-            outputs.append(output)
-            mathematics.append_dict(intermediates_lists, intermediates)
-
-        output = combine_quantity(outputs, batcher.grid_full)
-        intermediates = dict((key, combine_quantity(intermediates_list, batcher.grid_full))
-                             for key, intermediates_list in intermediates_lists.items())
-        return output, intermediates
-
     def set_train(self):
         self.network.train()
 
     def set_eval(self):
         self.network.eval()
+
+class TransformedModel(Model):
+    """
+    A parent `Model` where the input quantities `q` can be transformed before
+    they are handed to the child.
+    The output can then be transformed as well.
+    """
+
+    def __init__(
+            self,
+            child_model: Model,
+            *,
+            input_transformations: Optional[dict[str,Callable]] = None,
+            output_transformation: Optional[Callable] = None,
+            output_dtype = None,
+        ):
+        """transformation(quantity: Quantity, q: QuantityDict)"""
+        if input_transformations is None:
+            input_transformations = {}
+        if output_transformation is None:
+            output_transformation = lambda quantity, q: quantity
+        if output_dtype is None:
+            output_dtype = child_model.output_dtype
+
+        self.child_model = child_model
+        self.input_transformations = input_transformations
+        self.output_transformation = output_transformation
+        super().__init__(
+            child_model.parameters,
+            model_dtype = child_model.model_dtype,
+            output_dtype = output_dtype,
+        )
+
+    def apply(self, q: QuantityDict, **kwargs):
+        transformed_q = copy.copy(q)
+        intermediates = {}
+        for label, transformation in self.input_transformations.items():
+            transformed_q[label] = transformation(q[label], q)
+            intermediates[label + '_transformed'] = transformed_q[label]
+        child_output, child_intermediates = self.child_model.apply(transformed_q, **kwargs)
+        intermediates.update(child_intermediates)
+        intermediates['untransformed_output'] = child_output
+        transformed_output = self.output_transformation(child_output, q)
+        transformed_output = transformed_output.set_dtype(self.output_dtype)
+
+        return transformed_output, intermediates
+
+    def set_train(self):
+        self.child_model.set_train()
+
+    def set_eval(self):
+        self.child_model.set_eval()
 
 
 def get_extended_q(
