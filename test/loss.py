@@ -13,7 +13,8 @@ def get_derivative_loss(q, *, with_grad):
     #    retain_graph=with_grad,
     #    create_graph=with_grad,
     #)
-    y_dx = q['y'].get_fd_derivative('x')
+    #y_dx = q['y'].get_fd_derivative('x')
+    y_dx = (q['y+dx'] - q['y-dx']) / (2 * params.dx)
     residual = y_dx - q['c'] * q['cos(x)']
 
     return params.loss_function(residual)

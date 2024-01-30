@@ -43,11 +43,14 @@ y_model = SimpleNNModel(
     output_dtype = params.si_dtype,
     device = params.device,
 )
-# Transforming the model is not necessary here, just for testing
-y_model = TransformedModel(
+y_pdx_model = TransformedModel(
     y_model,
-    input_transformations = {'x': lambda x, q: x / 2},
-    output_transformation = lambda y, q: y * 2,
+    input_transformations = {'x': lambda x, q: x + params.dx},
+    output_dtype = params.si_dtype,
+)
+y_mdx_model = TransformedModel(
+    y_model,
+    input_transformations = {'x': lambda x, q: x - params.dx},
     output_dtype = params.si_dtype,
 )
 c_model = ConstModel(
@@ -58,7 +61,13 @@ c_model = ConstModel(
 cos_model = FunctionModel(lambda q: torch.cos(q['x']))
 
 models_dict = {
-    'bulk': {'y': y_model, 'c': c_model, 'cos(x)': cos_model},
+    'bulk': {
+        'y': y_model,
+        'y+dx': y_pdx_model,
+        'y-dx': y_mdx_model,
+        'c': c_model,
+        'cos(x)': cos_model,
+    },
     'left': {'y': y_model},
     'right': {'y': y_model},
     'zero': {'y': y_model},

@@ -35,4 +35,5 @@ X_RIGHT = 2 * np.pi
 N_x_training = 1000
 N_x_validation = 1000
 batch_size_x = 1000
+dx = 1e-2 # If finite differences are used
 

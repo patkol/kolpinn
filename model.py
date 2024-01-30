@@ -311,7 +311,10 @@ class TransformedModel(Model):
         intermediates.update(child_intermediates)
         intermediates['untransformed_output'] = child_output
         transformed_output = self.output_transformation(child_output, q)
-        transformed_output = transformed_output.set_dtype(self.output_dtype)
+        if torch.is_tensor(transformed_output):
+            transformed_output = transformed_output.type(self.output_dtype)
+        else:
+            transformed_output = transformed_output.set_dtype(self.output_dtype)
 
         return transformed_output, intermediates
 
