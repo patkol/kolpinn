@@ -256,7 +256,7 @@ class Trainer:
             model_parameters_dict[batcher_name] = {}
             for model_name, model in self.models_dict[batcher_name].items():
                 if len(model.parameters) == 0:
-                    break
+                    continue
                 model_parameters_dict[batcher_name][model_name] = model.parameters
         save_dict = {
             'model_parameters_dict': model_parameters_dict,
@@ -277,7 +277,7 @@ class Trainer:
         for batcher_name in self.batcher_names:
             for model_name, model in self.models_dict[batcher_name].items():
                 if len(model.parameters) == 0:
-                    break
+                    continue
                 self.models_dict[batcher_name][model_name].replace_parameters(
                     save_dict['model_parameters_dict'][batcher_name][model_name]
                 )
