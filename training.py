@@ -51,6 +51,7 @@ class Trainer:
         self.batchers_validation = batchers_validation
         self.used_losses = used_losses
         self.quantities_requiring_grad_dict = quantities_requiring_grad_dict
+        self.trained_models_labels = trained_models_labels
         self.saved_parameters_index = saved_parameters_index
         self.name = name
 
@@ -63,7 +64,7 @@ class Trainer:
         for batcher_name in self.batcher_names:
             self.models_requiring_grad_dict[batcher_name] = []
             for model_label, model in models_dict[batcher_name].items():
-                if model_label in trained_models_labels:
+                if model_label in self.trained_models_labels:
                     self.models_requiring_grad_dict[batcher_name].append(model_label)
                     all_parameters += model.parameters
         all_parameters = remove_duplicates(all_parameters)
@@ -255,7 +256,7 @@ class Trainer:
         for batcher_name in self.batcher_names:
             model_parameters_dict[batcher_name] = {}
             for model_name, model in self.models_dict[batcher_name].items():
-                if len(model.parameters) == 0:
+                if not model_name in self.trained_models_labels:
                     continue
                 model_parameters_dict[batcher_name][model_name] = model.parameters
         save_dict = {
@@ -276,7 +277,7 @@ class Trainer:
         save_dict = torch.load(path + self.name + '.pth')
         for batcher_name in self.batcher_names:
             for model_name, model in self.models_dict[batcher_name].items():
-                if len(model.parameters) == 0:
+                if not model_name in self.trained_models_labels:
                     continue
                 self.models_dict[batcher_name][model_name].replace_parameters(
                     save_dict['model_parameters_dict'][batcher_name][model_name]
