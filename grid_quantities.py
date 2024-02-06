@@ -259,39 +259,132 @@ class Quantity:
 
         return Quantity(grad_tensor, input_.grid)
 
-    def get_fd_derivative(self, dimension: str):
-        """
-        Derive along `dimension` using finite differences.
-        On the last gridpoint of `dimension` the derivative is not defined, the
-        value at the second to last one is used.
-        """
+    def _get_derivative(
+            self,
+            dim_index,
+            *,
+            values = None,
+            dimension = None,
+            slice_ = None,
+        ):
+        if values is None:
+            values = self.values
+        if dimension is None:
+            dimension = self.grid[self.grid.dimensions_labels[dim_index]]
+        if slice_ is not None:
+            slices = [slice(None)] * len(values.size())
+            slices[dim_index] = slice_
+            values = values[slices]
+            dimension = dimension[slice_]
 
-        dim_index = self.grid.index[dimension]
-        values_diff = torch.diff(self.values, dim=dim_index)
-        dimension_diff = torch.diff(self.grid[dimension])
-        dx1 = dimension_diff[-2] # For extrapolation
-        dx2 = dimension_diff[-1]
+        values_diff = torch.diff(values, dim=dim_index)
+        dimension_diff = torch.diff(dimension)
         dimension_diff = mathematics.expand(
             dimension_diff,
             values_diff.size(),
             [dim_index],
         )
-        derivative_tensor = values_diff / dimension_diff
+        derivative = values_diff / dimension_diff
 
-        # Extrapolate the rightmost derivative to be compatible with the grid
-        last_slice = [slice(None)] * len(derivative_tensor.size())
-        second_last_slice = copy.copy(last_slice)
-        last_slice[dim_index] = slice(-1, None)
-        second_last_slice[dim_index] = slice(-2,-1)
-        dx21 = dx2 / dx1
-        extrapolated_slice = ((1+dx21) * derivative_tensor[last_slice]
-                              - dx21 * derivative_tensor[second_last_slice])
-        derivative_tensor = torch.cat(
-            (derivative_tensor, extrapolated_slice),
+        return derivative
+
+    def get_fd_derivative(self, dimension: str):
+        """
+        Derive along `dimension` using finite differences.
+        Central differences are used, and on the boundary an extrapolation
+        incorporating three grid points is performed.
+        Might be inaccurate on non-equispaced grids.
+        """
+
+        dim_index = self.grid.index[dimension]
+
+        # Calculate the central differences:
+        # odd_derivatives starts at index 1 and
+        # even at 2
+        even_slice = slice(0, None, 2)
+        odd_slice = slice(1, None, 2)
+        odd_derivative = self._get_derivative(dim_index, slice_ = even_slice)
+        even_derivative = self._get_derivative(dim_index, slice_ = odd_slice)
+        derivative = mathematics.interleave(
+            odd_derivative,
+            even_derivative,
+            dim = dim_index,
+        )
+
+        # Calculate the derivatives at the left and right
+        left_slice = slice(0, 2)
+        right_slice = slice(-2, None)
+        left_mid_derivative = self._get_derivative(dim_index, slice_ = left_slice)
+        right_mid_derivative = self._get_derivative(dim_index, slice_ = right_slice)
+
+        # Extrapolate to the very left and right
+        # (interpreting left/right_derivative as defined in the middle between
+        # the outermost and the inner point)
+        # Equivalent to the left/right-sided stencils at (4) in
+        # https://www.colorado.edu/amath/sites/default/files/attached-files/wk10_finitedifferences.pdf
+        # for equispaced grids.
+        full_slices = [slice(None)] * len(self.values.size())
+        left_slices = copy.copy(full_slices)
+        left_slices[dim_index] = slice(0, 1)
+        right_slices = copy.copy(full_slices)
+        right_slices[dim_index] = slice(-1, None)
+        left_inner_derivative = derivative[left_slices]
+        right_inner_derivative = derivative[right_slices]
+        left_derivative = 2 * left_mid_derivative - left_inner_derivative
+        right_derivative = 2 * right_mid_derivative - right_inner_derivative
+
+        derivative = torch.cat(
+            (left_derivative, derivative, right_derivative),
             dim_index,
         )
 
-        return Quantity(derivative_tensor, self.grid)
+        return Quantity(derivative, self.grid)
+
+    def get_fd_second_derivative(self, dimension: str):
+        """
+        Seperate treatment of the second derivative to make sure
+        not only even/odd points are used in each point.
+        Will be inaccurate on non-equispaced grids.
+        """
+
+        dim_index = self.grid.index[dimension]
+
+        dx = self.grid[dimension][1] - self.grid[dimension][0]
+        full_slices = [slice(None)] * len(self.values.size())
+        left_slices = copy.copy(full_slices)
+        left_slices[dim_index] = slice(0,-2)
+        mid_slices = copy.copy(full_slices)
+        mid_slices[dim_index] = slice(1,-1)
+        right_slices = copy.copy(full_slices)
+        right_slices[dim_index] = slice(2,None)
+        second_derivative = (self.values[left_slices]
+                             + self.values[right_slices]
+                             - 2 * self.values[mid_slices]) / dx**2
+
+        # Extrapolate to the very left and right
+        # Equivalent to the left/right-sided stencils at (4) in
+        # https://www.colorado.edu/amath/sites/default/files/attached-files/wk10_finitedifferences.pdf
+        # for equispaced grids.
+        full_slices = [slice(None)] * len(second_derivative.size())
+        left_slices = copy.copy(full_slices)
+        left_slices[dim_index] = slice(0,1)
+        second_left_slices = copy.copy(full_slices)
+        second_left_slices[dim_index] = slice(1,2)
+        right_slices = copy.copy(full_slices)
+        right_slices[dim_index] = slice(-1,None)
+        second_right_slices = copy.copy(full_slices)
+        second_right_slices[dim_index] = slice(-2,-1)
+        left_derivative = (2 * second_derivative[left_slices]
+                           - second_derivative[second_left_slices])
+        right_derivative = (2 * second_derivative[right_slices]
+                            - second_derivative[second_right_slices])
+
+        second_derivative = torch.cat(
+            (left_derivative, second_derivative, right_derivative),
+            dim_index,
+        )
+
+        return Quantity(second_derivative, self.grid)
 
     def restrict(self, subgrid: Grid):
         if subgrid is self.grid:

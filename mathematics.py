@@ -1,4 +1,7 @@
+import copy
+
 import torch
+
 
 identity = lambda x: x
 
@@ -146,3 +149,34 @@ def expand(tensor_in: torch.Tensor, shape_target, indices_in):
                f"indices_in={indices_in} might not be ordered"
 
     return tensor_in.reshape(shape_out)
+
+def interleave(tensor1: torch.Tensor, tensor2: torch.Tensor, *, dim: int):
+    """
+    Interleave the two tensors along `dim`.
+    """
+
+    shape1 = list(tensor1.size())
+    shape2 = list(tensor2.size())
+    n_dim = len(shape1)
+
+    different_lengths = shape2[dim] == shape1[dim] - 1
+    if different_lengths:
+        # Treat the last column of tensor1 separately
+        slices = [slice(None)] * n_dim
+        slices[dim] = slice(0,-1)
+        full_tensor1 = tensor1
+        tensor1 = full_tensor1[slices]
+        shape1 = list(tensor1.size())
+        slices[dim] = slice(-1,None)
+        last_column = full_tensor1[slices]
+
+    assert shape1 == shape2
+
+    shape_out = copy.copy(shape1)
+    shape_out[dim] += shape2[dim]
+    out = torch.stack((tensor1, tensor2), dim=dim+1).view(*shape_out)
+
+    if different_lengths:
+        out = torch.cat((out, last_column), dim)
+
+    return out
