@@ -349,7 +349,7 @@ class Quantity:
 
         dim_index = self.grid.index[dimension]
 
-        dx = self.grid[dimension][1] - self.grid[dimension][0]
+        dx = (self.grid[dimension][-1] - self.grid[dimension][0]) / (self.grid.dim_size[dimension] - 1)
         full_slices = [slice(None)] * len(self.values.size())
         left_slices = copy.copy(full_slices)
         left_slices[dim_index] = slice(0,-2)
