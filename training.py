@@ -12,7 +12,7 @@ from .model import Model, get_extended_qs
 
 def get_numpy_losses(losses):
     """
-    losses[loss_name] = Quantity
+    losses[loss_name]: torch.Tensor
     """
 
     numpy_losses = np.array([loss.item() for loss in losses.values()])
@@ -150,7 +150,7 @@ class Trainer:
         for batcher_name, batcher in self.batchers_training.items():
             q = qs[batcher_name]
             for loss_name in self.used_losses[batcher_name]:
-                losses[loss_name] = q[loss_name].values.mean()
+                losses[loss_name] = q[loss_name].mean()
 
         return losses
 

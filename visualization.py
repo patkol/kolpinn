@@ -1,15 +1,15 @@
+from typing import Iterable
 import os
 import matplotlib.pyplot as plt
 import torch
 
-from .grid_quantities import Grid, Quantity
+from .grid_quantities import Grid
 from . import training
 
 
 
-def get_avg_tensor(quantity: Quantity, dimensions):
-    grid = quantity.grid
-    tensor = quantity.values.detach().cpu()
+def get_avg_tensor(tensor: torch.Tensor, grid: Grid, dimensions: Iterable[str]) -> torch.Tensor:
+    tensor = tensor.detach().cpu()
     perm = []
     dims_to_squeeze = []
     for label in grid.dimensions_labels:
@@ -32,7 +32,8 @@ format_unit_name = lambda s: '' if s is None else f' [{s}]'
 
 def add_lineplot(
         ax,
-        quantity: Quantity,
+        quantity: torch.Tensor,
+        grid: Grid,
         quantity_label,
         x_dimension,
         lines_dimension = None,
@@ -57,10 +58,10 @@ def add_lineplot(
     if not lines_dimension is None:
         plot_dimensions.append(lines_dimension)
         label = list(f'{lines_dimension} = {v/lines_unit:.2f}' + lines_unit_name
-                     for v in quantity.grid[lines_dimension])
+                     for v in grid[lines_dimension])
 
-    tensor = get_avg_tensor(quantity, plot_dimensions)
-    x_values = quantity.grid[x_dimension].detach().cpu()
+    tensor = get_avg_tensor(quantity, grid, plot_dimensions)
+    x_values = grid[x_dimension].detach().cpu()
     if print_raw_data:
         print("x:")
         print(x_values)
@@ -76,7 +77,8 @@ def add_lineplot(
 
 
 def save_lineplot(
-        quantity: Quantity,
+        quantity: torch.Tensor,
+        grid: Grid,
         quantity_label,
         x_dimension,
         lines_dimension = None,
@@ -108,6 +110,7 @@ def save_lineplot(
     add_lineplot(
         ax,
         quantity,
+        grid,
         quantity_label,
         x_dimension,
         lines_dimension,
@@ -135,7 +138,8 @@ def save_lineplot(
 def add_heatmap(
         fig,
         ax,
-        quantity: Quantity,
+        quantity: torch.Tensor,
+        grid: Grid,
         quantity_label,
         x_dimension,
         y_dimension,
@@ -158,9 +162,9 @@ def add_heatmap(
 
     plot_dimensions = (y_dimension, x_dimension)
 
-    tensor = get_avg_tensor(quantity, plot_dimensions)
-    x_values = quantity.grid[x_dimension].detach().cpu()
-    y_values = quantity.grid[y_dimension].detach().cpu()
+    tensor = get_avg_tensor(quantity, grid, plot_dimensions)
+    x_values = grid[x_dimension].detach().cpu()
+    y_values = grid[y_dimension].detach().cpu()
 
     heatmap = ax.pcolormesh(
         x_values / x_unit,
@@ -179,7 +183,8 @@ def add_heatmap(
 
 
 def save_heatmap(
-        quantity: Quantity,
+        quantity: torch.Tensor,
+        grid: Grid,
         quantity_label,
         x_dimension,
         y_dimension,
@@ -207,6 +212,7 @@ def save_heatmap(
         fig,
         ax,
         quantity,
+        grid,
         quantity_label,
         x_dimension,
         y_dimension,
@@ -225,7 +231,8 @@ def save_heatmap(
 
 def add_complex_polar_plot(
         ax,
-        quantity: Quantity,
+        quantity: torch.Tensor,
+        grid: Grid,
         quantity_label,
         x_dimension,
         lines_dimension = None,
@@ -247,9 +254,9 @@ def add_complex_polar_plot(
     if not lines_dimension is None:
         plot_dimensions.append(lines_dimension)
         label = list(f'{lines_dimension} = {v/lines_unit:.2f}' + lines_unit_name
-                     for v in quantity.grid[lines_dimension])
+                     for v in grid[lines_dimension])
 
-    tensor = get_avg_tensor(quantity, plot_dimensions)
+    tensor = get_avg_tensor(quantity, grid, plot_dimensions)
     ax.plot(
         torch.angle(tensor),
         torch.abs(tensor) / quantity_unit,
@@ -259,7 +266,8 @@ def add_complex_polar_plot(
 
 
 def save_complex_polar_plot(
-        quantity: Quantity,
+        quantity: torch.Tensor,
+        grid: Grid,
         quantity_label,
         x_dimension,
         lines_dimension = None,
@@ -276,12 +284,13 @@ def save_complex_polar_plot(
     if path_prefix is None:
         path_prefix = 'plots/'
     os.makedirs(path_prefix, exist_ok=True)
-    path = path_prefix + f'{quantity_label}_{lines_dimension}_lineplot.pdf'
+    path = path_prefix + f'{quantity_label}_{lines_dimension}_polar_plot.pdf'
 
     fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
     add_complex_polar_plot(
         ax,
         quantity,
+        grid,
         quantity_label,
         x_dimension,
         lines_dimension,

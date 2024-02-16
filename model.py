@@ -1,7 +1,3 @@
-"""
-The network architecture and functions to interface with it
-"""
-
 from typing import Optional, Callable, Union, Iterable
 import warnings
 import copy
@@ -10,14 +6,15 @@ from torch import nn
 
 from . import mathematics
 from . import grid_quantities
-from .grid_quantities import Grid, Quantity, QuantityDict, combine_quantity, combine_quantities
+from .grid_quantities import Grid, QuantityDict, combine_quantity, combine_quantities
 from .batching import Batcher
 
 
 
 class Model:
     """
-    Model.apply(q: QuantityDict) -> Quantity or torch.Tensor of type `output_dtype`
+    Model.apply(q: QuantityDict)
+    -> torch.Tensor of type `output_dtype`, dict of intermediate quantities
     The model is parametrized by `parameters` of type `model_dtype`.
     """
     def __init__(
@@ -79,21 +76,20 @@ class ConstModel(Model):
         )
 
     def apply(self, q: QuantityDict):
-        return self.parameters[0].type(self.output_dtype), {}
+        return self.parameters[0].to(self.output_dtype), {}
 
 
 class FunctionModel(Model):
     def __init__(self, function, *, output_dtype=None, **kwargs):
         """
-        function(q) -> Quantity
+        function(q: QuantityDict, **kwargs) -> torch.Tensor
         """
         self.function = function
         self.kwargs = kwargs
         super().__init__([], model_dtype=None, output_dtype=output_dtype)
 
     def apply(self, q: QuantityDict):
-        # TODO: support scalar / tensor outputs
-        return self.function(q, **(self.kwargs)).set_dtype(self.output_dtype), {}
+        return self.function(q, **(self.kwargs)).to(self.output_dtype), {}
 
 
 def get_model(value, *, model_dtype, output_dtype, **kwargs):
@@ -231,10 +227,11 @@ class SimpleNNModel(Model):
             q: QuantityDict,
         ):
         """
-        Returns output, intermediates where
-            output is the Quantity represented by the NN and
+        Returns output, intermediates
+        where
+            output is the evaluated quantity represented by the NN and
             intermediates is a dict containing all inputs and
-            outputs of the NN after/before applying transformations.
+                outputs of the NN after/before applying transformations.
         """
 
         # inputs_tensor[gridpoint, input quantity]
@@ -243,23 +240,19 @@ class SimpleNNModel(Model):
             dtype = self.model_dtype,
         )
         for (i, label) in enumerate(self.inputs_labels):
-            input_quantity = q[label].expand_all_dims()
-            inputs_tensor[:,i] = input_quantity.values.flatten()
+            inputs_tensor[:,i] = grid_quantities.expand_all_dims(q[label], q.grid).flatten()
 
         nn_outputs_tensor = self.network(inputs_tensor)
         output = self._assemble(nn_outputs_tensor)
         output = output.reshape(q.grid.shape)
-        output = output.type(self.output_dtype)
-        output = Quantity(output, q.grid)
+        output = output.to(self.output_dtype)
 
         intermediates = {}
         # OPTIM: Skip if not needed
         for output_index in range(nn_outputs_tensor.size(-1)):
             nn_output_tensor = nn_outputs_tensor[..., output_index]
-            intermediates[f'nn_output{output_index}'] = Quantity(
-                nn_output_tensor.reshape(q.grid.shape),
-                q.grid,
-            )
+            nn_output_tensor = nn_output_tensor.reshape(q.grid.shape)
+            intermediates[f'nn_output{output_index}'] = nn_output_tensor
 
         return output, intermediates
 
@@ -311,10 +304,7 @@ class TransformedModel(Model):
         intermediates.update(child_intermediates)
         intermediates['untransformed_output'] = child_output
         transformed_output = self.output_transformation(child_output, q)
-        if torch.is_tensor(transformed_output):
-            transformed_output = transformed_output.type(self.output_dtype)
-        else:
-            transformed_output = transformed_output.set_dtype(self.output_dtype)
+        transformed_output = transformed_output.to(self.output_dtype)
 
         return transformed_output, intermediates
 
@@ -349,7 +339,7 @@ def get_extended_q(
     q = copy.copy(q_in)
 
     for quantity_label in quantities_requiring_grad_labels:
-        q[quantity_label] = q[quantity_label].expand_all_dims()
+        q[quantity_label] = grid_quantities.expand_all_dims(q[quantity_label], q.grid)
         q[quantity_label].requires_grad = True
 
     for model_label in models_requiring_grad_labels:
@@ -359,11 +349,8 @@ def get_extended_q(
         output, intermediates = model.apply(q)
         assert not model_name in q, model_name
         q[model_name] = output
-        for key, intermediate in intermediates.items():
-            if key in q:
-                assert q[key] == intermediate
-                continue
-            q[key] = intermediate
+        # Overwriting existing intermediates with the same key
+        q.update(intermediates)
 
     return q
 

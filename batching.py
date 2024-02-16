@@ -5,7 +5,7 @@ import itertools
 import torch
 
 from . import grid_quantities
-from .grid_quantities import Grid, Subgrid, Quantity, QuantityDict, restrict_quantities
+from .grid_quantities import Grid, Subgrid, QuantityDict, restrict_quantities
 
 
 class Batcher:
@@ -57,7 +57,6 @@ class Batcher:
         """
         Returns batches which together cover the whole grid
         without randomization.
-        batches = [(q1, grid1), ...]
         """
 
         indices_lists = []
