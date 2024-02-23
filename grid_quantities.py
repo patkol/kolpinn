@@ -95,8 +95,6 @@ class Subgrid(Grid):
         super().__init__(dimensions)
 
     def __repr__(self):
-        return f'Subgrid(parent_grid={self.parent_grid}, indices_dict={self.indices_dict})'
-
         return ('Subgrid(\n'
                 + textwrap.indent(f'parent_grid={self.parent_grid},\n', '    ')
                 + textwrap.indent(f'indices_dict={self.indices_dict}),\n', '    ')
@@ -105,15 +103,14 @@ class Subgrid(Grid):
 
 
 class QuantityDict(collections.UserDict):
-    """ The values can be tensors and scalars """
+    """ The values must be tensors """
     def __init__(self, grid, *args, **kwargs):
         self.grid = grid
         super().__init__(*args, **kwargs)
 
     def __setitem__(self, label: str, quantity):
-        assert ((not torch.is_tensor(quantity) or len(quantity.size()) == 0)
-                or compatible(quantity, self.grid)), \
-               quantity
+        assert torch.is_tensor(quantity), quantity
+        assert compatible(quantity, self.grid), quantity
         super().__setitem__(label, quantity)
 
 
@@ -195,8 +192,14 @@ def compatible(tensor: torch.Tensor, grid: Grid) -> bool:
     return True
 
 
-def is_singleton_dimension(label: str, tensor: torch.Tensor, grid: Grid) -> bool:
-    assert compatible(tensor, grid)
+def is_singleton_dimension(
+        label: str,
+        tensor: torch.Tensor,
+        grid: Grid,
+        *,
+        check_compatible: bool = True,
+    ) -> bool:
+    assert not check_compatible or compatible(tensor, grid)
     return tensor.size(grid.index[label]) == 1
 
 
@@ -386,12 +389,12 @@ def restrict(tensor: torch.Tensor, subgrid: Grid) -> torch.Tensor:
     restricted_tensor = tensor
     for dim, label in enumerate(subgrid.dimensions_labels):
         if (label not in subgrid.indices_dict.keys()
-            or is_singleton_dimension(label, tensor, subgrid)):
+            or is_singleton_dimension(label, tensor, subgrid, check_compatible=False)):
             continue
         indices = subgrid.indices_dict[label]
         restricted_tensor = restricted_tensor.index_select(dim, indices)
 
-    assert compatible(restriced_tensor, subgrid)
+    assert compatible(restricted_tensor, subgrid)
 
     return restricted_tensor
 
@@ -448,9 +451,9 @@ def unsqueeze_to(
 def combine_quantity(quantity_list, subgrid_list, grid: Grid):
     """Combine tensors on subgrids of `grid` to a tensor on `grid`"""
 
-    if not torch.is_tensor(quantity_list[0]) or len(quantity_list[0].size()) == 0:
-        assert all(quantity == quantity_list[0] for quantity in quantity_list), \
-               quantity_list
+    if len(quantity_list) == 1:
+        assert compatible(quantity_list[0], subgrid_list[0])
+        assert compatible(quantity_list[0], grid)
         return quantity_list[0]
 
     dtype = quantity_list[0].dtype
@@ -461,6 +464,7 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
     covered = torch.zeros(grid.shape, dtype=torch.bool)
 
     for quantity, subgrid in zip(quantity_list, subgrid_list):
+        assert compatible(quantity, subgrid)
         assert subgrid.parent_grid is grid
         assert quantity.dtype is dtype
         assert set(subgrid.indices_dict.keys()) == reduced_dimensions_labels

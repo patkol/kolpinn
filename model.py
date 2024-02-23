@@ -67,7 +67,7 @@ class Model:
 
 
 class ConstModel(Model):
-    def __init__(self, value, *, model_dtype, output_dtype):
+    def __init__(self, value, *, model_dtype, output_dtype=None):
         parameters = [torch.tensor(value, dtype=model_dtype)]
         super().__init__(
             parameters,
@@ -76,7 +76,8 @@ class ConstModel(Model):
         )
 
     def apply(self, q: QuantityDict):
-        return self.parameters[0].to(self.output_dtype), {}
+        tensor = self.parameters[0].reshape([1] * q.grid.n_dim)
+        return tensor.to(self.output_dtype), {}
 
 
 class FunctionModel(Model):
