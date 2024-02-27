@@ -178,6 +178,9 @@ class SimpleNNModel(Model):
         r/phi_transformation: Applied to r/phi if complex_polar
         """
 
+        if complex_polar is None:
+            complex_polar = False
+
         self.inputs_labels = inputs_labels
         self.n_inputs = len(inputs_labels)
         self.complex_output = output_dtype in (torch.complex64, torch.complex128)
@@ -321,8 +324,8 @@ def get_extended_q(
         *,
         models: dict = None,
         models_require_grad: bool,
-        quantities_requiring_grad_labels: list[str] = None,
-        models_requiring_grad_labels: list[str] = None,
+        quantities_requiring_grad_labels: Optional[list[str]] = None,
+        models_requiring_grad_labels: Optional[list[str]] = None,
     ):
     """
     Get the quantities including the evaluated models.
@@ -361,8 +364,8 @@ def get_extended_q_batchwise(
         *,
         models: dict,
         models_require_grad: bool,
-        quantities_requiring_grad_labels: list[str] = None,
-        models_requiring_grad_labels: list[str] = None,
+        quantities_requiring_grad_labels: Optional[list[str]] = None,
+        models_requiring_grad_labels: Optional[list[str]] = None,
     ):
     """
     Get the quantities including the evaluated models.
