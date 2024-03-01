@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Union, Iterable
+from typing import Optional, Callable, Union, Iterable, Any
 import warnings
 import copy
 import torch
@@ -14,7 +14,7 @@ from .batching import Batcher
 class Model:
     """
     Model.apply(q: QuantityDict)
-    -> torch.Tensor of type `output_dtype`, dict of intermediate quantities
+    -> torch.Tensor of type `output_dtype`
     The model is parametrized by `parameters` of type `model_dtype`.
     """
     def __init__(
@@ -29,17 +29,11 @@ class Model:
         self.output_dtype = output_dtype
         self.check()
 
-    def apply(self, q: QuantityDict, **kwargs):
-        """
-        Should return quantity, dict of intermediate quantities
-        """
+    def apply(self, q: QuantityDict) -> torch.Tensor:
         raise Exception('`Model` is an ABC')
 
     def set_requires_grad(self, requires_grad: bool):
-        if requires_grad and len(self.parameters) == 0:
-            warnings.warn('Tried to set `requires_grad` on a parameter-less model')
-        for parameter in self.parameters:
-            parameter.requires_grad_(requires_grad)
+        _set_requires_grad(requires_grad, self.parameters)
 
     def set_train(self):
         pass
@@ -54,12 +48,7 @@ class Model:
         torch.save(self.parameters, path)
 
     def replace_parameters(self, new_parameters: Iterable[torch.Tensor]):
-        assert len(self.parameters) == len(new_parameters)
-        for parameter, new_parameter in zip(self.parameters, new_parameters):
-            requires_grad = parameter.requires_grad
-            parameter.requires_grad_(False)
-            parameter[...] = new_parameter
-            parameter.requires_grad_(requires_grad)
+        _replace_parameters(self.parameters, new_parameters)
 
     def check(self):
         for parameter in self.parameters:
@@ -77,7 +66,7 @@ class ConstModel(Model):
 
     def apply(self, q: QuantityDict):
         tensor = self.parameters[0].reshape([1] * q.grid.n_dim)
-        return tensor.to(self.output_dtype), {}
+        return tensor.to(self.output_dtype)
 
 
 class FunctionModel(Model):
@@ -90,16 +79,19 @@ class FunctionModel(Model):
         super().__init__([], model_dtype=None, output_dtype=output_dtype)
 
     def apply(self, q: QuantityDict):
-        return self.function(q, **(self.kwargs)).to(self.output_dtype), {}
+        tensor = self.function(q, **(self.kwargs))
+        return tensor.to(self.output_dtype)
 
 
-def get_model(value, *, model_dtype, output_dtype, **kwargs):
+def get_model(value, *, model_dtype=None, output_dtype=None, **kwargs):
     """
     Returns a FunctionModel if `value` is callable and a ConstModel otherwise.
     """
 
     if callable(value):
         return FunctionModel(value, output_dtype=output_dtype, **kwargs)
+
+    assert model_dtype is not None
 
     return ConstModel(
                value,
@@ -226,16 +218,9 @@ class SimpleNNModel(Model):
         # Interpret the two components as the real and imaginary part
         return torch.view_as_complex(tensor)
 
-    def apply(
-            self,
-            q: QuantityDict,
-        ):
+    def apply(self, q: QuantityDict):
         """
-        Returns output, intermediates
-        where
-            output is the evaluated quantity represented by the NN and
-            intermediates is a dict containing all inputs and
-                outputs of the NN after/before applying transformations.
+        Returns the evaluated quantity represented by the NN.
         """
 
         # inputs_tensor[gridpoint, input quantity]
@@ -246,19 +231,12 @@ class SimpleNNModel(Model):
         for (i, label) in enumerate(self.inputs_labels):
             inputs_tensor[:,i] = grid_quantities.expand_all_dims(q[label], q.grid).flatten()
 
-        nn_outputs_tensor = self.network(inputs_tensor)
-        output = self._assemble(nn_outputs_tensor)
+        output = self.network(inputs_tensor)
+        output = self._assemble(output)
         output = output.reshape(q.grid.shape)
         output = output.to(self.output_dtype)
 
-        intermediates = {}
-        # OPTIM: Skip if not needed
-        for output_index in range(nn_outputs_tensor.size(-1)):
-            nn_output_tensor = nn_outputs_tensor[..., output_index]
-            nn_output_tensor = nn_output_tensor.reshape(q.grid.shape)
-            intermediates[f'nn_output{output_index}'] = nn_output_tensor
-
-        return output, intermediates
+        return output
 
     def set_train(self):
         self.network.train()
@@ -298,19 +276,15 @@ class TransformedModel(Model):
             output_dtype = output_dtype,
         )
 
-    def apply(self, q: QuantityDict, **kwargs):
+    def apply(self, q: QuantityDict):
         transformed_q = copy.copy(q)
-        intermediates = {}
         for label, transformation in self.input_transformations.items():
             transformed_q[label] = transformation(q[label], q)
-            intermediates[label + '_transformed'] = transformed_q[label]
-        child_output, child_intermediates = self.child_model.apply(transformed_q, **kwargs)
-        intermediates.update(child_intermediates)
-        intermediates['untransformed_output'] = child_output
+        child_output = self.child_model.apply(transformed_q)
         transformed_output = self.output_transformation(child_output, q)
         transformed_output = transformed_output.to(self.output_dtype)
 
-        return transformed_output, intermediates
+        return transformed_output
 
     def set_train(self):
         self.child_model.set_train()
@@ -319,90 +293,150 @@ class TransformedModel(Model):
         self.child_model.set_eval()
 
 
-def get_extended_q(
-        q_in: QuantityDict,
+class MultiModel:
+    def __init__(
+            self,
+            qs_trafo: Callable,
+            name: str,
+            *,
+            models: Optional[list[Model]]=None,
+            parameters: Optional[list[torch.Tensor]]=None,
+            networks: Optional[list[torch.nn.Module]]=None,
+        ):
+        """
+        qs_trafo should accept, modify and return qs.
+        The MultiModel allows operations that depend on multiple grids.
+        """
+
+        if models is None:
+            models = []
+        if parameters is None:
+            parameters = []
+        if networks is None:
+            networks = []
+
+        self.qs_trafo = qs_trafo
+        self.name = name
+        self.models = models
+        self.parameters = parameters
+        self.networks = networks
+
+    def apply(self, qs: dict[str,QuantityDict]):
+        return self.qs_trafo(qs)
+
+    def set_requires_grad(self, requires_grad: bool):
+        _set_requires_grad(requires_grad, self.parameters)
+
+    def set_train(self):
+        for i in range(len(self.networks)):
+            self.networks[i].train()
+
+    def set_eval(self):
+        for i in range(len(self.networks)):
+            self.networks[i].eval()
+
+    def load(self, path: str):
+        self.replace_parameters(torch.load(path))
+
+    def save(self, path: str):
+        torch.save(self.parameters, path)
+
+    def replace_parameters(self, new_parameters: Iterable[torch.Tensor]):
+        _replace_parameters(self.parameters, new_parameters)
+
+
+def get_multi_model(model: Model, model_name: str, grid_name: str):
+    """
+    Turn a model that does not depend on other grids (q -> q)
+    into a MultiModel (qs -> qs).
+    """
+
+    def qs_trafo(qs: dict[str,QuantityDict]):
+        q = qs[grid_name]
+        assert not model_name in q, f'model {model_name}, grid {grid_name}'
+        q[model_name] = model.apply(q)
+        return qs
+
+    return MultiModel(
+        qs_trafo,
+        model_name,
+        models = [model],
+        parameters = model.parameters,
+        networks = _find_networks(model),
+    )
+
+def get_multi_models(
+        models_dict: dict[str,Model],
+        grid_name: str,
         *,
-        models: dict = None,
-        models_require_grad: bool,
-        quantities_requiring_grad_labels: Optional[list[str]] = None,
-        models_requiring_grad_labels: Optional[list[str]] = None,
+        used_models_names: Optional[list[str]],
+    ):
+    if used_models_names is not None:
+        models_dict = dict((name, models_dict[name])
+                           for name in used_models_names)
+    multi_models = [get_multi_model(model, model_name, grid_name)
+                    for model_name, model in models_dict.items()]
+
+    return multi_models
+
+
+def _replace_parameters(
+        old_parameters: Iterable[torch.Tensor],
+        new_parameters: Iterable[torch.Tensor],
+    ):
+    assert len(old_parameters) == len(new_parameters)
+    for old_parameter, new_parameter in zip(old_parameters, new_parameters):
+        requires_grad = old_parameter.requires_grad
+        old_parameter.requires_grad_(False)
+        old_parameter[...] = new_parameter
+        old_parameter.requires_grad_(requires_grad)
+
+    return old_parameters
+
+def _set_requires_grad(requires_grad: bool, parameters: Iterable[torch.Tensor]):
+    if requires_grad and len(parameters) == 0:
+        warnings.warn('Tried to set `requires_grad` on a parameter-less model')
+    for i in range(len(parameters)):
+        parameters[i].requires_grad_(requires_grad)
+
+    return parameters
+
+def _find_networks(model):
+    networks = []
+    if hasattr(model, 'network'):
+        networks.append(model.network)
+    if hasattr(model, 'child_model'):
+        networks += _find_networks(model.child_model)
+
+    return networks
+
+
+def set_requires_grad_quantities(
+        quantities_dict: dict[str,list[str]],
+        qs: dict[str,QuantityDict],
     ):
     """
-    Get the quantities including the evaluated models.
-    quantities_requiring_grad_labels are expanded and require grad.
-    models_requiring_grad_labels require grad iff models_require_grad.
+    Expand and require grad for the given quantities.
+    quantities_dict[grid_name] = [quantity_name1, ...]
     """
-
-    if models is None:
-        models = {}
-    if quantities_requiring_grad_labels is None:
-        quantities_requiring_grad_labels = []
-    if models_requiring_grad_labels is None:
-        models_requiring_grad_labels = []
-
-    q = copy.copy(q_in)
-
-    for quantity_label in quantities_requiring_grad_labels:
-        q[quantity_label] = grid_quantities.expand_all_dims(q[quantity_label], q.grid)
-        q[quantity_label].requires_grad = True
-
-    for model_label in models_requiring_grad_labels:
-        models[model_label].set_requires_grad(models_require_grad)
-
-    for model_name, model in models.items():
-        output, intermediates = model.apply(q)
-        assert not model_name in q, model_name
-        q[model_name] = output
-        # Overwriting existing intermediates with the same key
-        q.update(intermediates)
-
-    return q
-
-
-def get_extended_q_batchwise(
-        batcher: Batcher,
-        *,
-        models: dict,
-        models_require_grad: bool,
-        quantities_requiring_grad_labels: Optional[list[str]] = None,
-        models_requiring_grad_labels: Optional[list[str]] = None,
-    ):
-    """
-    Get the quantities including the evaluated models.
-    """
-
-    qs_batch = []
-    for q_batch in batcher.get_all():
-        qs_batch.append(get_extended_q(
-            q_batch,
-            models = models,
-            models_require_grad = models_require_grad,
-            quantities_requiring_grad_labels = quantities_requiring_grad_labels,
-            models_requiring_grad_labels = models_requiring_grad_labels,
-        ))
-
-    return combine_quantities(qs_batch, batcher.grid_full)
-
-
-def get_extended_qs(
-        batchers: dict[str,Batcher],
-        *,
-        models_dict: dict[str,dict[str,Model]],
-        models_require_grad: bool,
-        quantities_requiring_grad_dict: dict[str,list[str]],
-        models_requiring_grad_dict: dict[str,list[str]],
-        full_grid: bool,
-    ):
-
-    qs = {}
-    q_function = get_extended_q_batchwise if full_grid else get_extended_q
-    for batcher_name, batcher in batchers.items():
-        qs[batcher_name] = q_function(
-            batcher if full_grid else batcher(),
-            models = models_dict[batcher_name],
-            models_require_grad = models_require_grad,
-            quantities_requiring_grad_labels = quantities_requiring_grad_dict[batcher_name],
-            models_requiring_grad_labels = models_requiring_grad_dict[batcher_name],
-        )
+    for grid_name, quantity_names in quantities_dict.items():
+        q = qs[grid_name]
+        for quantity_name in quantity_names:
+            q[quantity_name] = grid_quantities.expand_all_dims(
+                q[quantity_name],
+                q.grid,
+            )
+            q[quantity_name].requires_grad = True
 
     return qs
+
+def set_requires_grad_models(
+        requires_grad: bool,
+        models: list[MultiModel],
+    ):
+    """
+    Set `requires_grad` on the parameters of the given models.
+    """
+    for model in models:
+        model.set_requires_grad(requires_grad)
+

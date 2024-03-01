@@ -77,3 +77,8 @@ class Batcher:
             batches.append(self._get_q(indices_dict))
 
         return batches
+
+
+def get_qs(batchers: dict[str,Batcher]):
+    return dict((grid_name, batcher())
+                for grid_name, batcher in batchers.items())

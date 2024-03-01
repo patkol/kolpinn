@@ -1,4 +1,5 @@
 from typing import Callable, Optional
+import itertools
 import os
 import time
 import numpy as np
@@ -6,8 +7,8 @@ import torch
 
 from .mathematics import remove_duplicates
 from .io import get_next_parameters_index, get_parameters_path
-from .batching import Batcher
-from .model import Model, get_extended_qs
+from .batching import Batcher, get_qs
+from .model import MultiModel, set_requires_grad_quantities, set_requires_grad_models
 
 
 def get_numpy_losses(losses):
@@ -25,7 +26,7 @@ class Trainer:
     def __init__(
             self,
             *,
-            models_dict: dict[str,dict[str,Model]],
+            models: list[MultiModel],
             batchers_training: dict[str,Batcher],
             batchers_validation: dict[str,Batcher],
             used_losses: dict[str,list[str]],
@@ -46,7 +47,7 @@ class Trainer:
         if scheduler_kwargs is None:
             scheduler_kwargs = {}
 
-        self.models_dict = models_dict
+        self.models = models
         self.batchers_training = batchers_training
         self.batchers_validation = batchers_validation
         self.used_losses = used_losses
@@ -55,24 +56,18 @@ class Trainer:
         self.saved_parameters_index = saved_parameters_index
         self.name = name
 
-        self.batcher_names = models_dict.keys()
-        assert set(self.batchers_training) == set(self.batcher_names)
-        assert set(self.batchers_validation) == set(self.batcher_names)
-
-        self.models_requiring_grad_dict = {}
-        all_parameters = []
-        for batcher_name in self.batcher_names:
-            self.models_requiring_grad_dict[batcher_name] = []
-            for model_label, model in models_dict[batcher_name].items():
-                if model_label in self.trained_models_labels:
-                    self.models_requiring_grad_dict[batcher_name].append(model_label)
-                    all_parameters += model.parameters
+        self.trained_models = [model for model in models
+                                     if model.name in trained_models_labels]
+        all_parameters = list(itertools.chain.from_iterable(
+            [model.parameters for model in models],
+        ))
         all_parameters = remove_duplicates(all_parameters)
         self.optimizer = Optimizer(all_parameters, **optimizer_kwargs)
         self.scheduler = (None if Scheduler is None
                           else Scheduler(self.optimizer, **scheduler_kwargs))
 
-        self.n_losses = sum(len(losses) for losses in used_losses.values())
+        self.used_losses_list = list(itertools.chain.from_iterable(used_losses.values()))
+        self.n_losses = len(self.used_losses_list)
         self.training_loss_history = np.zeros((0, self.n_losses+1))
         self.training_loss_times = np.zeros((0,))
         self.validation_loss_history = np.zeros((0, self.n_losses+1))
@@ -80,9 +75,13 @@ class Trainer:
         self.training_start_time = None
         self.min_validation_loss = None
         self.loss_names = [] # In the same order as the training histories
-        for losses in used_losses.values():
+        for losses in self.used_losses_list:
             self.loss_names += losses
         self.loss_names += ['Total']
+
+        # batcher_names: keys to batchers, qs, used_losses, quantities_requiring_grad_dict
+        self.batcher_names = batchers_training.keys()
+        assert set(self.batcher_names) == set(batchers_validation.keys())
 
     def train(
             self,
@@ -98,9 +97,8 @@ class Trainer:
         self.training_start_time = time.perf_counter()
         step_index = 0
 
-        for batcher_name in self.batcher_names:
-            for model in self.models_dict[batcher_name].values():
-                model.set_train()
+        for model in self.models:
+            model.set_train()
 
         while True:
             stop = False
@@ -156,25 +154,26 @@ class Trainer:
 
 
     def set_losses_kwargs(self, **kwargs):
-        for batcher_name in self.batcher_names:
-            for loss_name in self.used_losses[batcher_name]:
+        for multi_model in self.models:
+            if multi_model.name not in self.used_losses_list:
+                continue
+            for model in multi_model.models:
                 for label, arg in kwargs.items():
-                    self.models_dict[batcher_name][loss_name].kwargs[label] = arg
+                    model.kwargs[label] = arg
 
-    def get_extended_qs(self, *, for_training=False):
-        qs = get_extended_qs(
-            self.batchers_training if for_training else self.batchers_validation,
-            models_dict = self.models_dict,
-            models_require_grad = for_training, # OPTIM: not always the case for LBFGS
-            quantities_requiring_grad_dict = self.quantities_requiring_grad_dict,
-            models_requiring_grad_dict = self.models_requiring_grad_dict,
-            full_grid = not for_training,
-        )
+    def get_extended_qs(self, *, for_training):
+        # TODO: Support for actual batching
+        qs = get_qs(self.batchers_training if for_training else self.batchers_validation)
+        set_requires_grad_quantities(self.quantities_requiring_grad_dict, qs)
+        for model in self.models:
+            #print(f"Evaluating '{model.name}'") # DEBUG
+            model.apply(qs)
 
         return qs
 
 
     def get_training_losses(self):
+        set_requires_grad_models(True, self.trained_models)
         self.set_losses_kwargs(with_grad=True)
         qs = self.get_extended_qs(for_training = True)
         losses = self._extract_losses(qs)
@@ -195,6 +194,7 @@ class Trainer:
         return losses
 
     def get_validation_losses(self, save_if_best):
+        set_requires_grad_models(False, self.trained_models)
         self.set_losses_kwargs(with_grad=False)
         qs = self.get_extended_qs(for_training = False)
         losses = self._extract_losses(qs)
@@ -253,12 +253,10 @@ class Trainer:
         os.makedirs(path, exist_ok=True)
 
         model_parameters_dict = {}
-        for batcher_name in self.batcher_names:
-            model_parameters_dict[batcher_name] = {}
-            for model_name, model in self.models_dict[batcher_name].items():
-                if not model_name in self.trained_models_labels:
-                    continue
-                model_parameters_dict[batcher_name][model_name] = model.parameters
+        for model in self.models:
+            if model.name not in self.trained_models_labels:
+                continue
+            model_parameters_dict[model.name] = model.parameters
         save_dict = {
             'model_parameters_dict': model_parameters_dict,
             'optimizer_state_dict': self.optimizer.state_dict(),
@@ -275,23 +273,21 @@ class Trainer:
 
         path = get_parameters_path(parameters_index)
         save_dict = torch.load(path + self.name + '.pth')
-        for batcher_name in self.batcher_names:
-            for model_name, model in self.models_dict[batcher_name].items():
-                if not model_name in self.trained_models_labels:
-                    continue
-                self.models_dict[batcher_name][model_name].replace_parameters(
-                    save_dict['model_parameters_dict'][batcher_name][model_name]
-                )
+        for model in self.models:
+            if model.name not in self.trained_models_labels:
+                continue
+            model.replace_parameters(
+                save_dict['model_parameters_dict'][model.name]
+            )
         if load_optimizer:
             self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
         if load_scheduler:
             self.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
 
 
-    def load_models(self, loaded_models_dict):
-        for batcher_name in self.batcher_names:
-            for model_name, model in self.models_dict[batcher_name].items():
-                self.models_dict[batcher_name][model_name].replace_parameters(
-                    loaded_models_dict[batcher_name][model_name].parameters,
-                )
+    def load_models(self, loaded_models):
+        assert len(loaded_models) == len(self.models)
+        for model, loaded_model in zip(self.models, loaded_models):
+            assert model.name == loaded_model.name
+            model.replace_parameters(loaded_model.parameters)
 
