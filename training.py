@@ -76,7 +76,7 @@ class Trainer:
         self.min_validation_loss = None
         self.loss_names = [] # In the same order as the training histories
         for losses in self.used_losses_list:
-            self.loss_names += losses
+            self.loss_names.append(losses)
         self.loss_names += ['Total']
 
         # batcher_names: keys to batchers, qs, used_losses, quantities_requiring_grad_dict
