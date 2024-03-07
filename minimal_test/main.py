@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 """
-Solving dy/dx = cos(x), x in (-2pi, +2pi), y = 1 on Boundaries, y'(0) = 1
-Exact solution: y(x) = sin(x) + 1
-NN approximation: y(x) = f(x) * NN(xs, params), f(x) = exp(0.1x) is the (intentionally bad) guess
+Solving y = cos(x), x in (-pi, +pi)
+Exact solution: y(x) = cos(x)
+NN approximation: y(x) = cos(x)
 """
 
 import pdb
@@ -22,7 +22,6 @@ from kolpinn.model import ConstModel, FunctionModel, SimpleNNModel, \
 from kolpinn.training import Trainer
 
 import parameters as params
-import loss
 from visualization import visualize
 
 
@@ -38,40 +37,27 @@ torch.set_default_dtype(params.si_dtype)
 
 conditions_dicts = {
     'bulk': {},
-    'left': {'x': lambda x: x==params.X_LEFT},
-    'right': {'x': lambda x: x==params.X_RIGHT},
 }
 grid_training = Grid({
     'x': torch.linspace(params.X_LEFT, params.X_RIGHT, params.N_x_training),
 })
 grids_training = grid_training.get_subgrids(conditions_dicts, copy_all=True)
-grids_training['zero'] = Grid({
-    'x': torch.tensor([0.]),
-})
 grid_validation = Grid({
     'x': torch.linspace(params.X_LEFT, params.X_RIGHT, params.N_x_validation),
 })
 grids_validation = grid_validation.get_subgrids(conditions_dicts, copy_all=True)
-grids_validation['zero'] = Grid({
-    'x': torch.tensor([0.]),
-})
-
-grid_names = ['bulk', 'left', 'right', 'zero']
 
 
 # Models
 
 ## Constant models
 cos_model = FunctionModel(lambda q: torch.cos(q['x']))
-f_model = FunctionModel(lambda q: q['x'] + 1)#torch.exp(0.1 * q['x']))
 
 const_models = []
 const_models.append(get_multi_model(cos_model, 'cos(x)', 'bulk'))
-for grid_name in grid_names:
-    const_models.append(get_multi_model(f_model, 'f', grid_name))
 
 ## Parameter-dependent models
-y_output_model = SimpleNNModel(
+y_model = SimpleNNModel(
     ['x'],
     params.activation_function,
     n_neurons_per_hidden_layer = params.n_neurons_per_hidden_layer,
@@ -80,32 +66,18 @@ y_output_model = SimpleNNModel(
     output_dtype = params.si_dtype,
     device = params.device,
 )
-y_model = TransformedModel(
-    y_output_model,
-    output_transformation = lambda o, q: q['f'] * o,
-)
+loss_model = FunctionModel(lambda q, *, with_grad: params.loss_function(q['y'] - q['cos(x)']))
 
 models = []
-for grid_name in grid_names:
-    models.append(get_multi_model(y_output_model, 'y_output', grid_name))
-    models.append(get_multi_model(y_model, 'y', grid_name))
-
-### Add the losses
-models.append(get_multi_model(loss.derivative_loss_model, 'derivative_loss', 'bulk'))
-for grid_name in ['left', 'right']:
-    models.append(get_multi_model(loss.boundary_loss_model, grid_name + '_loss', grid_name))
-models.append(get_multi_model(loss.zero_loss_model, 'zero_loss', 'zero'))
+models.append(get_multi_model(y_model, 'y', 'bulk'))
+models.append(get_multi_model(loss_model, 'loss', 'bulk'))
 used_losses = {
-    'bulk': ['derivative_loss'],
-    'left': ['left_loss'],
-    'right': ['right_loss'],
-    'zero': ['zero_loss'],
+    'bulk': ['loss'],
 }
 
-trained_models_labels = ['y_output']
+trained_models_labels = ['y']
 quantities_requiring_grad = {
     'bulk': ['x'],
-    'zero': ['x'],
 }
 
 
@@ -117,15 +89,9 @@ qs_validation = model.get_qs(grids_validation, const_models, quantities_requirin
 # Batchers
 batchers_training = {
     'bulk': Batcher(qs_training['bulk'], grids_training['bulk'], ['x'], [params.batch_size_x]),
-    'left': Batcher(qs_training['left'], grids_training['left'], [], []),
-    'right': Batcher(qs_training['right'], grids_training['right'], [], []),
-    'zero': Batcher(qs_training['zero'], grids_training['zero'], [], []),
 }
 batchers_validation = {
     'bulk': Batcher(qs_validation['bulk'], grids_validation['bulk'], ['x'], [params.batch_size_x]),
-    'left': Batcher(qs_validation['left'], grids_validation['left'], [], []),
-    'right': Batcher(qs_validation['right'], grids_validation['right'], [], []),
-    'zero': Batcher(qs_validation['zero'], grids_validation['zero'], [], []),
 }
 
 

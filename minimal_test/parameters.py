@@ -10,13 +10,13 @@ si_dtype = torch.float64
 
 # Training
 max_n_training_steps = None
-max_time = 4
+max_time = 3
 min_loss = None
-report_each = 50
+report_each = 250
 Optimizer = torch.optim.AdamW
-optimizer_kwargs = {'lr': 1e-2} # Overwritten by a reloaded optimizer
-Scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau
-scheduler_kwargs = {'factor': 0.2, 'patience': 5}
+optimizer_kwargs = {'lr': 1e-3} # Overwritten by a reloaded optimizer
+Scheduler = None
+scheduler_kwargs = None
 loss_function = mathematics.complex_abs2
 
 # Model
@@ -30,8 +30,8 @@ activation_function = torch.nn.SiLU()
 model_dtype = torch.float64
 
 # Coordinates
-X_LEFT = -2 * np.pi
-X_RIGHT = 2 * np.pi
+X_LEFT = -np.pi
+X_RIGHT = np.pi
 N_x = 100
 N_x_training = N_x
 N_x_validation = N_x

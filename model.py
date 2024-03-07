@@ -6,7 +6,8 @@ from torch import nn
 
 from . import mathematics
 from . import grid_quantities
-from .grid_quantities import Grid, QuantityDict, combine_quantity, combine_quantities
+from .grid_quantities import Grid, QuantityDict, combine_quantity, \
+                             combine_quantities, might_depend_on
 from .batching import Batcher
 
 
@@ -300,26 +301,33 @@ class MultiModel:
             name: str,
             *,
             models: Optional[list[Model]]=None,
-            parameters: Optional[list[torch.Tensor]]=None,
-            networks: Optional[list[torch.nn.Module]]=None,
+            parameters_in: Optional[list[torch.Tensor]]=None,
+            networks_in: Optional[list[torch.nn.Module]]=None,
+            grid_name: Optional[str]=None,
         ):
         """
         qs_trafo should accept, modify and return qs.
         The MultiModel allows operations that depend on multiple grids.
+        grid_name: The grid the MultiModel operates on, if there's only one
         """
 
         if models is None:
             models = []
-        if parameters is None:
-            parameters = []
-        if networks is None:
-            networks = []
+        parameters = [] if parameters_in is None else copy.copy(parameters_in)
+        networks = [] if networks_in is None else copy.copy(networks_in)
+
+        for model in models:
+            parameters += model.parameters
+            networks += _find_networks(model)
+        parameters = mathematics.remove_duplicates(parameters)
+        networks = mathematics.remove_duplicates(networks)
 
         self.qs_trafo = qs_trafo
         self.name = name
         self.models = models
         self.parameters = parameters
         self.networks = networks
+        self.grid_name = grid_name
 
     def apply(self, qs: dict[str,QuantityDict]):
         return self.qs_trafo(qs)
@@ -345,11 +353,20 @@ class MultiModel:
         _replace_parameters(self.parameters, new_parameters)
 
 
-def get_multi_model(model: Model, model_name: str, grid_name: str):
+def get_multi_model(
+        model: Model,
+        model_name: str,
+        grid_name: str,
+        *,
+        multi_model_name: Optional[str] = None,
+    ):
     """
     Turn a model that does not depend on other grids (q -> q)
     into a MultiModel (qs -> qs).
     """
+
+    if multi_model_name is None:
+        multi_model_name = model_name
 
     def qs_trafo(qs: dict[str,QuantityDict]):
         q = qs[grid_name]
@@ -359,10 +376,9 @@ def get_multi_model(model: Model, model_name: str, grid_name: str):
 
     return MultiModel(
         qs_trafo,
-        model_name,
+        multi_model_name,
         models = [model],
-        parameters = model.parameters,
-        networks = _find_networks(model),
+        grid_name = grid_name,
     )
 
 def get_multi_models(
@@ -410,10 +426,40 @@ def _find_networks(model):
 
     return networks
 
+def add_coordinates(qs: dict[str,QuantityDict]):
+    for q in qs.values():
+        grid = q.grid
+        for label, dimension_values in grid.dimensions.items():
+            assert not label in q, label
+            q[label] = grid_quantities.unsqueeze_to(grid, dimension_values, [label])
+
+    return qs
+
+coordinates_model = MultiModel(add_coordinates, 'coordinates')
+
+def get_qs(
+        grids: dict[str,Grid],
+        models: list[MultiModel],
+        quantities_requiring_grad: dict[str,list[str]],
+    ):
+    """ Get the non-extended qs that do not depend on trained parameters. """
+
+    qs = dict((grid_name, QuantityDict(grid)) for grid_name, grid in grids.items())
+    coordinates_model.apply(qs)
+    set_requires_grad_quantities(quantities_requiring_grad, qs, allow_missing_quantities=True)
+
+    for model in models:
+        model.apply(qs)
+    set_requires_grad_quantities(quantities_requiring_grad, qs)
+
+    return qs
+
 
 def set_requires_grad_quantities(
         quantities_dict: dict[str,list[str]],
         qs: dict[str,QuantityDict],
+        *,
+        allow_missing_quantities: bool=False,
     ):
     """
     Expand and require grad for the given quantities.
@@ -422,11 +468,20 @@ def set_requires_grad_quantities(
     for grid_name, quantity_names in quantities_dict.items():
         q = qs[grid_name]
         for quantity_name in quantity_names:
+            if not quantity_name in q:
+                assert allow_missing_quantities, quantity_name
+                continue
+
+            if q[quantity_name].requires_grad:
+                for label in q.grid.dimensions_labels:
+                    assert might_depend_on(label, q[quantity_name], q.grid)
+                continue
+
             q[quantity_name] = grid_quantities.expand_all_dims(
                 q[quantity_name],
                 q.grid,
             )
-            q[quantity_name].requires_grad = True
+            q[quantity_name].requires_grad_(True)
 
     return qs
 

@@ -58,11 +58,11 @@ class Trainer:
 
         self.trained_models = [model for model in models
                                      if model.name in trained_models_labels]
-        all_parameters = list(itertools.chain.from_iterable(
-            [model.parameters for model in models],
+        self.all_parameters = list(itertools.chain.from_iterable(
+            [model.parameters for model in self.trained_models],
         ))
-        all_parameters = remove_duplicates(all_parameters)
-        self.optimizer = Optimizer(all_parameters, **optimizer_kwargs)
+        self.all_parameters = remove_duplicates(self.all_parameters)
+        self.optimizer = Optimizer(self.all_parameters, **optimizer_kwargs)
         self.scheduler = (None if Scheduler is None
                           else Scheduler(self.optimizer, **scheduler_kwargs))
 
@@ -83,6 +83,9 @@ class Trainer:
         self.batcher_names = batchers_training.keys()
         assert set(self.batcher_names) == set(batchers_validation.keys())
 
+        # PROFILING
+        self.evaluation_times = dict((model.name, 0.) for model in self.models)
+
     def train(
             self,
             *,
@@ -96,9 +99,6 @@ class Trainer:
 
         self.training_start_time = time.perf_counter()
         step_index = 0
-
-        for model in self.models:
-            model.set_train()
 
         while True:
             stop = False
@@ -129,6 +129,9 @@ class Trainer:
 
 
     def validate(self, step_index, max_n_steps, *, save_if_best):
+        for model in self.models:
+            model.set_eval()
+
         max_n_steps_string = '  -  ' if max_n_steps is None else f'{max_n_steps:>5d}'
         print(f'[{step_index:>5d}/{max_n_steps_string}]')
         self.get_validation_losses(save_if_best = save_if_best)
@@ -136,6 +139,9 @@ class Trainer:
             self.scheduler.step(self.validation_loss_history[-1][-1])
 
     def step(self):
+        for model in self.models:
+            model.set_train()
+
         if type(self.optimizer) is torch.optim.LBFGS:
             self.optimizer.step(self.closure)
         else:
@@ -162,12 +168,21 @@ class Trainer:
                     model.kwargs[label] = arg
 
     def get_extended_qs(self, *, for_training):
-        # TODO: Support for actual batching
-        qs = get_qs(self.batchers_training if for_training else self.batchers_validation)
+        # TODO: Support for combining batches
+        batchers = self.batchers_training if for_training else self.batchers_validation
+        qs = get_qs(batchers)
         set_requires_grad_quantities(self.quantities_requiring_grad_dict, qs)
         for model in self.models:
             #print(f"Evaluating '{model.name}'") # DEBUG
+            eval_start_time = time.perf_counter_ns() # PROFILING
+            # Provide q_full if necessary
+            for submodel in model.models:
+                if hasattr(submodel, 'kwargs') and 'q_full' in submodel.kwargs:
+                    submodel.kwargs['q_full'] = batchers[model.grid_name].q_full
             model.apply(qs)
+            # PROFILING
+            eval_time = time.perf_counter_ns() - eval_start_time  # PROFILING
+            self.evaluation_times[model.name] += eval_time  # PROFILING
 
         return qs
 
@@ -243,7 +258,7 @@ class Trainer:
         self.optimizer.zero_grad() # OPTIM: not always necessary for lbfgs
         losses = self.get_training_losses()
         loss = sum(losses.values())
-        loss.backward() # OPTIM: not always necessary for lbfgs
+        loss.backward(inputs=self.all_parameters) # OPTIM: not always necessary for lbfgs
 
         return loss
 
