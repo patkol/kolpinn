@@ -135,7 +135,6 @@ trainer = Trainer(
     batchers_training = batchers_training,
     batchers_validation = batchers_validation,
     used_losses = used_losses,
-    quantities_requiring_grad_dict = quantities_requiring_grad,
     trained_models_labels = trained_models_labels,
     Optimizer = params.Optimizer,
     optimizer_kwargs = params.optimizer_kwargs,

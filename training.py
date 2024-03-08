@@ -30,7 +30,6 @@ class Trainer:
             batchers_training: dict[str,Batcher],
             batchers_validation: dict[str,Batcher],
             used_losses: dict[str,list[str]],
-            quantities_requiring_grad_dict: dict[str,list[str]],
             trained_models_labels: list[str],
             Optimizer,
             optimizer_kwargs: dict,
@@ -51,7 +50,6 @@ class Trainer:
         self.batchers_training = batchers_training
         self.batchers_validation = batchers_validation
         self.used_losses = used_losses
-        self.quantities_requiring_grad_dict = quantities_requiring_grad_dict
         self.trained_models_labels = trained_models_labels
         self.saved_parameters_index = saved_parameters_index
         self.name = name
@@ -79,7 +77,7 @@ class Trainer:
             self.loss_names.append(losses)
         self.loss_names += ['Total']
 
-        # batcher_names: keys to batchers, qs, used_losses, quantities_requiring_grad_dict
+        # batcher_names: keys to batchers, qs, used_losses
         self.batcher_names = batchers_training.keys()
         assert set(self.batcher_names) == set(batchers_validation.keys())
 
@@ -171,7 +169,6 @@ class Trainer:
         # TODO: Support for combining batches
         batchers = self.batchers_training if for_training else self.batchers_validation
         qs = get_qs(batchers)
-        set_requires_grad_quantities(self.quantities_requiring_grad_dict, qs)
         for model in self.models:
             #print(f"Evaluating '{model.name}'") # DEBUG
             eval_start_time = time.perf_counter_ns() # PROFILING
