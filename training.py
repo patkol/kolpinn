@@ -77,10 +77,6 @@ class Trainer:
             self.loss_names.append(losses)
         self.loss_names += ['Total']
 
-        # batcher_names: keys to batchers, qs, used_losses
-        self.batcher_names = batchers_training.keys()
-        assert set(self.batcher_names) == set(batchers_validation.keys())
-
         # PROFILING
         self.evaluation_times = dict((model.name, 0.) for model in self.models)
 
@@ -149,9 +145,9 @@ class Trainer:
 
     def _extract_losses(self, qs):
         losses = {}
-        for batcher_name, batcher in self.batchers_training.items():
-            q = qs[batcher_name]
-            for loss_name in self.used_losses[batcher_name]:
+        for grid_name, loss_names in self.used_losses.items():
+            q = qs[grid_name]
+            for loss_name in loss_names:
                 losses[loss_name] = q[loss_name].mean()
 
         return losses
