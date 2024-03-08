@@ -78,7 +78,7 @@ class Trainer:
         self.loss_names += ['Total']
 
         # PROFILING
-        self.evaluation_times = dict((model.name, 0.) for model in self.models)
+        self.evaluation_times = {}
 
     def train(
             self,
@@ -168,14 +168,19 @@ class Trainer:
         for model in self.models:
             #print(f"Evaluating '{model.name}'") # DEBUG
             eval_start_time = time.perf_counter_ns() # PROFILING
+
             # Provide q_full if necessary
             for submodel in model.models:
                 if hasattr(submodel, 'kwargs') and 'q_full' in submodel.kwargs:
                     submodel.kwargs['q_full'] = batchers[model.grid_name].q_full
             model.apply(qs)
+
             # PROFILING
-            eval_time = time.perf_counter_ns() - eval_start_time  # PROFILING
-            self.evaluation_times[model.name] += eval_time  # PROFILING
+            eval_time = time.perf_counter_ns() - eval_start_time
+            label = f'{model.name} on {model.grid_name}'
+            if not label in self.evaluation_times:
+                self.evaluation_times[label] = 0
+            self.evaluation_times[label] += eval_time
 
         return qs
 
