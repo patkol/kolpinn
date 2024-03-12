@@ -395,6 +395,51 @@ def get_multi_models(
 
     return multi_models
 
+def get_combined_multi_model(
+        model: Model,
+        model_name: str,
+        grid_names: list[str],
+        *,
+        combined_dimension_name: str,
+        required_quantities_labels: list[str],
+        multi_model_name: Optional[str] = None,
+    ):
+    """
+    Like `get_multi_model`, but evaluating on a supergrid of all `grid_names`
+    """
+    if multi_model_name is None:
+        multi_model_name = model_name
+
+    def qs_trafo(qs: dict[str,QuantityDict]):
+        child_grids = dict((grid_name, qs[grid_name].grid)
+                           for grid_name in grid_names)
+        supergrid = grid_quantities.Supergrid(
+            child_grids,
+            combined_dimension_name,
+            copy_all=False,
+        )
+        q = QuantityDict(supergrid)
+        for label in required_quantities_labels:
+            q[label] = combine_quantity(
+                [qs[child_name][label] for child_name in grid_names],
+                list(supergrid.subgrids.values()),
+                supergrid,
+            )
+        quantity = model.apply(q)
+        for grid_name in grid_names:
+            qs[grid_name][model_name] = grid_quantities.restrict(
+                quantity,
+                supergrid.subgrids[grid_name],
+            )
+
+        return qs
+
+    return MultiModel(
+        qs_trafo,
+        multi_model_name,
+        models = [model],
+    )
+
 
 def _replace_parameters(
         old_parameters: Iterable[torch.Tensor],

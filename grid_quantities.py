@@ -43,7 +43,7 @@ class Grid:
                           for index, label in enumerate(self.dimensions_labels))
 
     def __repr__(self):
-        return f'Grid({self.dimensions.keys()})'
+        return f'{self.__class__.__name__}({self.dimensions.keys()})'
 
     def __getitem__(self, dimension_label: str) -> torch.Tensor:
         return self.dimensions[dimension_label]
@@ -99,6 +99,65 @@ class Subgrid(Grid):
                 + textwrap.indent(f'parent_grid={self.parent_grid},\n', '    ')
                 + textwrap.indent(f'indices_dict={self.indices_dict}),\n', '    ')
                 + ')')
+
+
+class Supergrid(Grid):
+    def __init__(
+            self,
+            child_grids: dict[str,Grid],
+            dimension_name: str,
+            copy_all: bool,
+        ):
+        """
+        Concatenate the `child_grids` along `dimension_name`.
+        The `indices_dict` then allows one to get the values on the child grids:
+        `dimensions[dimension_name][self.indices_dict[child_grid_name]]`
+        corresponds to
+        `child_grid.dimensions[dimension_name]`
+        `subgrids` contains the `child_grids` as `Subgrid`s of `self`.
+        """
+
+        first_child = next(iter(child_grids.values()))
+        dimensions = copy.copy(first_child.dimensions)
+        dimensions[dimension_name] = torch.cat(
+            [child_grid[dimension_name] for child_grid in child_grids.values()]
+        )
+
+        if copy_all:
+            dimensions = copy.deepcopy(dimensions)
+
+        super().__init__(dimensions)
+
+
+        self.indices_dict = {}
+        self.subgrids = {}
+        first_index = 0
+        for child_grid_name, child_grid in child_grids.items():
+            for label, dimension in child_grid.dimensions.items():
+                assert (label == dimension_name
+                        or torch.all(dimension == self.dimensions[label])), \
+                    f'Dimension {label} is not the same for all grids'
+
+            dimension_size = child_grid[dimension_name].size(dim=0)
+            next_first_index = first_index + dimension_size
+            self.indices_dict[child_grid_name] = torch.arange(
+                first_index, first_index + dimension_size,
+            )
+            first_index = next_first_index
+
+            self.subgrids[child_grid_name] = Subgrid(
+                self,
+                {dimension_name: self.indices_dict[child_grid_name]},
+                copy_all = False,
+            )
+
+            assert torch.all(self.dimensions[dimension_name][self.indices_dict[child_grid_name]]
+                             == child_grid.dimensions[dimension_name]), \
+                child_grid_name
+
+
+        assert first_index == self.dimensions[dimension_name].size(dim=0)
+
 
 
 
