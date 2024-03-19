@@ -1,4 +1,5 @@
 from typing import Callable, Optional
+import copy
 import itertools
 import os
 import time
@@ -61,6 +62,7 @@ class Trainer:
         ))
         self.all_parameters = remove_duplicates(self.all_parameters)
         self.optimizer = Optimizer(self.all_parameters, **optimizer_kwargs)
+        self.initial_optimizer_state_dict = copy.deepcopy(self.optimizer.state_dict())
         self.scheduler = (None if Scheduler is None
                           else Scheduler(self.optimizer, **scheduler_kwargs))
 
@@ -119,7 +121,14 @@ class Trainer:
             step_index += 1
             self.step()
 
-
+            if not torch.isfinite(torch.tensor(self.training_loss_history[-1][-1])):
+                print(f'Loss became nonfinite in step {step_index}, resetting the optimizer...')
+                self.load(
+                    self.saved_parameters_index,
+                    load_optimizer=False,
+                    load_scheduler=False,
+                )
+                self.optimizer.load_state_dict(copy.deepcopy(self.initial_optimizer_state_dict))
 
 
     def validate(self, step_index, max_n_steps, *, save_if_best):
@@ -253,10 +262,10 @@ class Trainer:
         Calculation of the loss used for training
         """
 
-        self.optimizer.zero_grad() # OPTIM: not always necessary for lbfgs
+        self.optimizer.zero_grad()
         losses = self.get_training_losses()
         loss = sum(losses.values())
-        loss.backward(inputs=self.all_parameters) # OPTIM: not always necessary for lbfgs
+        loss.backward(inputs=self.all_parameters)
 
         return loss
 
