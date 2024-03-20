@@ -37,6 +37,7 @@ class Trainer:
             Scheduler = None,
             scheduler_kwargs: Optional[dict] = None,
             saved_parameters_index: int,
+            save_optimizer: bool,
             name: str,
         ):
         """
@@ -53,6 +54,7 @@ class Trainer:
         self.used_losses = used_losses
         self.trained_models_labels = trained_models_labels
         self.saved_parameters_index = saved_parameters_index
+        self.save_optimizer = save_optimizer
         self.name = name
 
         self.trained_models = [model for model in models
@@ -281,8 +283,9 @@ class Trainer:
             model_parameters_dict[model.name] = model.parameters
         save_dict = {
             'model_parameters_dict': model_parameters_dict,
-            'optimizer_state_dict': self.optimizer.state_dict(),
         }
+        if self.save_optimizer:
+            save_dict['optimizer_state_dict'] = self.optimizer.state_dict()
         if not self.scheduler is None:
             save_dict['scheduler_state_dict'] = self.scheduler.state_dict()
 
