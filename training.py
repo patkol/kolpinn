@@ -12,13 +12,13 @@ from .batching import Batcher, get_qs
 from .model import MultiModel, set_requires_grad_quantities, set_requires_grad_models
 
 
-def get_numpy_losses(losses):
+def get_numpy_losses(losses, loss_aggregate_function):
     """
     losses[loss_name]: torch.Tensor
     """
 
     numpy_losses = np.array([loss.item() for loss in losses.values()])
-    numpy_losses = np.append(numpy_losses, [np.sum(numpy_losses)])
+    numpy_losses = np.append(numpy_losses, [loss_aggregate_function(losses.values()).item()])
 
     return numpy_losses
 
@@ -38,15 +38,21 @@ class Trainer:
             scheduler_kwargs: Optional[dict] = None,
             saved_parameters_index: int,
             save_optimizer: bool,
+            loss_aggregate_function: Optional[Callable] = None,
             name: str,
         ):
         """
         The loss models referred to by `used_losses` should have a
         `with_grad` keyword, it will be controlled by the trainer.
+        `loss_aggregate_function(losses)` returns the total loss given the
+        iterable `losses`.
         """
 
         if scheduler_kwargs is None:
             scheduler_kwargs = {}
+
+        if loss_aggregate_function is None:
+            loss_aggregate_function = lambda losses: sum(losses)
 
         self.models = models
         self.batchers_training = batchers_training
@@ -55,6 +61,7 @@ class Trainer:
         self.trained_models_labels = trained_models_labels
         self.saved_parameters_index = saved_parameters_index
         self.save_optimizer = save_optimizer
+        self.loss_aggregate_function = loss_aggregate_function
         self.name = name
 
         self.trained_models = [model for model in models
@@ -203,7 +210,7 @@ class Trainer:
         losses = self._extract_losses(qs)
 
         # History
-        numpy_losses = get_numpy_losses(losses)
+        numpy_losses = get_numpy_losses(losses, self.loss_aggregate_function)
         self.training_loss_history = np.append(
             self.training_loss_history,
             [numpy_losses],
@@ -224,7 +231,7 @@ class Trainer:
         losses = self._extract_losses(qs)
 
         # History
-        numpy_losses = get_numpy_losses(losses)
+        numpy_losses = get_numpy_losses(losses, self.loss_aggregate_function)
         self.validation_loss_history = np.append(
             self.validation_loss_history,
             [numpy_losses],
@@ -266,7 +273,7 @@ class Trainer:
 
         self.optimizer.zero_grad()
         losses = self.get_training_losses()
-        loss = sum(losses.values())
+        loss = self.loss_aggregate_function(losses.values())
         loss.backward(inputs=self.all_parameters)
 
         return loss
