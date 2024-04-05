@@ -2,9 +2,7 @@ from typing import Optional, Callable
 import copy
 import random
 import itertools
-import torch
 
-from . import grid_quantities
 from .grid_quantities import Grid, Subgrid, QuantityDict, restrict_quantities
 
 

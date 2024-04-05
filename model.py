@@ -8,7 +8,6 @@ from . import mathematics
 from . import grid_quantities
 from .grid_quantities import Grid, QuantityDict, combine_quantity, \
                              combine_quantities, might_depend_on
-from .batching import Batcher
 
 
 

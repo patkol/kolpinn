@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
 import copy
-import typing
 from typing import Optional, Iterable, Union
 import textwrap
 import math
 import torch
-import itertools
 import collections
 
 from . import mathematics
@@ -216,7 +214,7 @@ def sum_dimension(label: str, tensor: torch.Tensor, grid: Grid) -> torch.Tensor:
     return summed_tensor
 
 
-def sum_dimensions(label: str, tensor: torch.Tensor, grid: Grid) -> torch.Tensor:
+def sum_dimensions(labels: list[str], tensor: torch.Tensor, grid: Grid) -> torch.Tensor:
     assert compatible(tensor, grid)
 
     out = tensor
@@ -231,7 +229,7 @@ def mean_dimension(label: str, tensor: torch.Tensor, grid: Grid) -> torch.Tensor
     return sum_dimension(label, tensor, grid) / grid.dim_size[label]
 
 
-def mean_dimensions(label: str, tensor: torch.Tensor, grid: Grid) -> torch.Tensor:
+def mean_dimensions(labels: list[str], tensor: torch.Tensor, grid: Grid) -> torch.Tensor:
     assert compatible(tensor, grid)
 
     out = tensor

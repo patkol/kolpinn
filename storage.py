@@ -1,6 +1,4 @@
-from typing import Optional
 import os
-import torch
 
 def get_parameters_path(index: int, data_path: str = ''):
     return data_path + f'parameters/{index:04d}/'

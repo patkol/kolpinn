@@ -1,9 +1,11 @@
 *.swp
-deprecated.py
+deprecated.txt
 *.vim
+*.code-workspace
 
 
 # Below: github/gitignore/Python.gitignore
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

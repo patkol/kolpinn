@@ -19,7 +19,7 @@ def complex_abs2(a):
 
 def complex_mse(a, b):
     """nn.MSELoss that works for complex numbers"""
-    return abs2(b-a).mean()
+    return complex_abs2(b-a).mean()
 
 def complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
     """

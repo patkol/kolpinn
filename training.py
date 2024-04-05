@@ -7,9 +7,9 @@ import numpy as np
 import torch
 
 from .mathematics import remove_duplicates
-from .io import get_next_parameters_index, get_parameters_path
+from .storage import get_parameters_path
 from .batching import Batcher, get_qs
-from .model import MultiModel, set_requires_grad_quantities, set_requires_grad_models
+from .model import MultiModel, set_requires_grad_models
 
 
 def get_numpy_losses(losses, loss_aggregate_function):
