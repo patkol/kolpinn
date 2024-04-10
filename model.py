@@ -302,18 +302,21 @@ class MultiModel:
             models: Optional[list[Model]]=None,
             parameters_in: Optional[list[torch.Tensor]]=None,
             networks_in: Optional[list[torch.nn.Module]]=None,
-            grid_name: Optional[str]=None,
+            kwargs: Optional[dict]=None,
         ):
         """
         qs_trafo should accept, modify and return qs.
         The MultiModel allows operations that depend on multiple grids.
         grid_name: The grid the MultiModel operates on, if there's only one
+        The `kwargs` will be provided to `qs_trafo`
         """
 
         if models is None:
             models = []
         parameters = [] if parameters_in is None else copy.copy(parameters_in)
         networks = [] if networks_in is None else copy.copy(networks_in)
+        if kwargs is None:
+            kwargs = {}
 
         for model in models:
             parameters += model.parameters
@@ -326,10 +329,10 @@ class MultiModel:
         self.models = models
         self.parameters = parameters
         self.networks = networks
-        self.grid_name = grid_name
+        self.kwargs = kwargs
 
     def apply(self, qs: dict[str,QuantityDict]):
-        return self.qs_trafo(qs)
+        return self.qs_trafo(qs, **self.kwargs)
 
     def set_requires_grad(self, requires_grad: bool):
         _set_requires_grad(requires_grad, self.parameters)
@@ -377,7 +380,6 @@ def get_multi_model(
         qs_trafo,
         multi_model_name,
         models = [model],
-        grid_name = grid_name,
     )
 
 def get_multi_models(

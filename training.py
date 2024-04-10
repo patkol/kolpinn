@@ -42,8 +42,11 @@ class Trainer:
             name: str,
         ):
         """
-        The loss models referred to by `used_losses` should have a
-        `with_grad` keyword, it will be controlled by the trainer.
+        `used_losses[grid_name]` contains the quantities in `qs[grid_name]`
+        that will be used as a loss.
+        The loss models referred to by `used_losses` may have a
+        `with_grad` and/or `qs_full` keyword, it will be controlled by the 
+        trainer.
         `loss_aggregate_function(losses)` returns the total loss given the
         iterable `losses`.
         """
@@ -83,9 +86,8 @@ class Trainer:
         self.validation_loss_times = np.zeros((0,))
         self.training_start_time = None
         self.min_validation_loss = None
-        self.loss_names = [] # In the same order as the training histories
-        for losses in self.used_losses_list:
-            self.loss_names.append(losses)
+        # loss_names: In the same order as the training histories
+        self.loss_names = copy.copy(self.used_losses_list) 
         self.loss_names += ['Total']
 
         # PROFILING
@@ -175,9 +177,16 @@ class Trainer:
         for multi_model in self.models:
             if multi_model.name not in self.used_losses_list:
                 continue
+
+            for label, arg in kwargs.items():
+                if label in multi_model.kwargs:
+                    multi_model.kwargs[label] = arg
+
             for model in multi_model.models:
                 for label, arg in kwargs.items():
-                    model.kwargs[label] = arg
+                    if label in model.kwargs:
+                        model.kwargs[label] = arg
+
 
     def get_extended_qs(self, *, for_training):
         # TODO: Support for combining batches
@@ -187,15 +196,16 @@ class Trainer:
             #print(f"Evaluating '{model.name}'") # DEBUG
             eval_start_time = time.perf_counter_ns() # PROFILING
 
-            # Provide q_full if necessary
-            for submodel in model.models:
-                if hasattr(submodel, 'kwargs') and 'q_full' in submodel.kwargs:
-                    submodel.kwargs['q_full'] = batchers[model.grid_name].q_full
+            # Provide qs_full if necessary
+            if 'qs_full' in model.kwargs:
+                qs_full = dict((grid_name, batcher.q_full) 
+                               for grid_name, batcher in batchers.items())
+                model.kwargs['qs_full'] = qs_full
             model.apply(qs)
 
             # PROFILING
             eval_time = time.perf_counter_ns() - eval_start_time
-            label = f'{model.name} on {model.grid_name}'
+            label = f'{model.name}'
             if not label in self.evaluation_times:
                 self.evaluation_times[label] = 0
             self.evaluation_times[label] += eval_time
@@ -205,7 +215,7 @@ class Trainer:
 
     def get_training_losses(self):
         set_requires_grad_models(True, self.trained_models)
-        self.set_losses_kwargs(with_grad=True)
+        self.set_losses_kwargs(with_grad = True)
         qs = self.get_extended_qs(for_training = True)
         losses = self._extract_losses(qs)
 
