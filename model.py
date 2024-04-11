@@ -1,4 +1,5 @@
-from typing import Optional, Callable, Union, Iterable, Any
+from typing import Optional, Callable
+from collections.abc import Sequence
 import warnings
 import copy
 import torch
@@ -19,7 +20,7 @@ class Model:
     """
     def __init__(
             self,
-            parameters: Iterable[torch.Tensor],
+            parameters: Sequence[torch.Tensor],
             *,
             model_dtype,
             output_dtype,
@@ -47,7 +48,7 @@ class Model:
     def save(self, path: str):
         torch.save(self.parameters, path)
 
-    def replace_parameters(self, new_parameters: Iterable[torch.Tensor]):
+    def replace_parameters(self, new_parameters: Sequence[torch.Tensor]):
         _replace_parameters(self.parameters, new_parameters)
 
     def check(self):
@@ -351,7 +352,7 @@ class MultiModel:
     def save(self, path: str):
         torch.save(self.parameters, path)
 
-    def replace_parameters(self, new_parameters: Iterable[torch.Tensor]):
+    def replace_parameters(self, new_parameters: Sequence[torch.Tensor]):
         _replace_parameters(self.parameters, new_parameters)
 
 
@@ -443,8 +444,8 @@ def get_combined_multi_model(
 
 
 def _replace_parameters(
-        old_parameters: Iterable[torch.Tensor],
-        new_parameters: Iterable[torch.Tensor],
+        old_parameters: Sequence[torch.Tensor],
+        new_parameters: Sequence[torch.Tensor],
     ):
     assert len(old_parameters) == len(new_parameters)
     for old_parameter, new_parameter in zip(old_parameters, new_parameters):
@@ -455,7 +456,7 @@ def _replace_parameters(
 
     return old_parameters
 
-def _set_requires_grad(requires_grad: bool, parameters: Iterable[torch.Tensor]):
+def _set_requires_grad(requires_grad: bool, parameters: Sequence[torch.Tensor]):
     if requires_grad and len(parameters) == 0:
         warnings.warn('Tried to set `requires_grad` on a parameter-less model')
     for i in range(len(parameters)):

@@ -96,7 +96,7 @@ class Trainer:
     def train(
             self,
             *,
-            report_each = None,
+            report_each: int,
             max_n_steps = None,
             max_time = None,
             min_loss = None,
@@ -184,7 +184,7 @@ class Trainer:
 
             for model in multi_model.models:
                 for label, arg in kwargs.items():
-                    if label in model.kwargs:
+                    if hasattr(model, 'kwargs') and label in model.kwargs:
                         model.kwargs[label] = arg
 
 

@@ -1,4 +1,4 @@
-from typing import Iterable
+from collections.abc import Sequence
 import os
 import matplotlib.pyplot as plt
 import torch
@@ -8,7 +8,7 @@ from . import training
 
 
 
-def get_avg_tensor(tensor: torch.Tensor, grid: Grid, dimensions: Iterable[str]) -> torch.Tensor:
+def get_avg_tensor(tensor: torch.Tensor, grid: Grid, dimensions: Sequence[str]) -> torch.Tensor:
     tensor = tensor.detach().cpu()
     perm = []
     dims_to_squeeze = []

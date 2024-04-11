@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import copy
-from typing import Optional, Iterable, Union
+from collections.abc import Sequence
 import textwrap
 import math
 import torch
@@ -161,7 +161,7 @@ class Supergrid(Grid):
 
 class QuantityDict(collections.UserDict):
     """ The values must be tensors """
-    def __init__(self, grid, *args, **kwargs):
+    def __init__(self, grid: Grid, *args, **kwargs):
         self.grid = grid
         super().__init__(*args, **kwargs)
 
@@ -487,7 +487,7 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
     return tensor
 
 
-def combine_quantities(qs: Iterable[QuantityDict], grid: Grid):
+def combine_quantities(qs: Sequence[QuantityDict], grid: Grid):
     q_combined = QuantityDict(grid)
     for label in qs[0].keys():
         q_combined[label] = combine_quantity(
@@ -499,7 +499,7 @@ def combine_quantities(qs: Iterable[QuantityDict], grid: Grid):
     return q_combined
 
 
-def restrict_quantities(q: QuantityDict, subgrid: Subgrid) -> dict:
+def restrict_quantities(q: QuantityDict, subgrid: Subgrid) -> QuantityDict:
     return QuantityDict(
         subgrid,
         ((label, restrict(quantity, subgrid)) for (label, quantity) in q.items()),

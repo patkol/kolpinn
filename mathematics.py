@@ -111,14 +111,6 @@ def remove_duplicates(l: list):
 
     return out
 
-def append_dict(lists_dict: dict, to_append: dict):
-    for key in to_append.keys():
-        if not lists_dict.has_key(key):
-            lists_dict[key] = []
-        lists_dict[key].append[to_append[key]]
-
-    return lists_dict
-
 def expand(tensor_in: torch.Tensor, shape_target, indices_in):
     """
     Expand tensor to the `shape_target`.
