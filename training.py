@@ -34,6 +34,7 @@ class Trainer:
             trained_models_labels: list[str],
             Optimizer,
             optimizer_kwargs: dict,
+            optimizer_reset_tol: float = float('inf'),
             Scheduler = None,
             scheduler_kwargs: Optional[dict] = None,
             saved_parameters_index: int,
@@ -62,6 +63,7 @@ class Trainer:
         self.batchers_validation = batchers_validation
         self.used_losses = used_losses
         self.trained_models_labels = trained_models_labels
+        self.optimizer_reset_tol = optimizer_reset_tol
         self.saved_parameters_index = saved_parameters_index
         self.save_optimizer = save_optimizer
         self.loss_aggregate_function = loss_aggregate_function
@@ -132,8 +134,10 @@ class Trainer:
             step_index += 1
             self.step()
 
-            if not torch.isfinite(torch.tensor(self.training_loss_history[-1][-1])):
-                print(f'Loss became nonfinite in step {step_index}, resetting the optimizer...')
+            if ((not torch.isfinite(torch.tensor(self.training_loss_history[-1][-1])))
+                or (self.min_validation_loss is not None
+                    and self.training_loss_history[-1][-1] > self.optimizer_reset_tol * self.min_validation_loss)):
+                print(f'Loss became nonfinite/large in step {step_index}, resetting the optimizer...')
                 self.load(
                     self.saved_parameters_index,
                     load_optimizer=False,

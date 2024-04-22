@@ -44,7 +44,7 @@ def complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
 
     return grad_real + 1j * grad_imag
 
-def grad(output, input_, **kwargs):
+def grad(output: torch.Tensor, input_: torch.Tensor, **kwargs) -> torch.Tensor:
     """
     Possibly complex gradient with ones as the `grad_outputs`
     kwargs example: retain_graph=True, create_graph=True

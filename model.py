@@ -308,7 +308,6 @@ class MultiModel:
         """
         qs_trafo should accept, modify and return qs.
         The MultiModel allows operations that depend on multiple grids.
-        grid_name: The grid the MultiModel operates on, if there's only one
         The `kwargs` will be provided to `qs_trafo`
         """
 
