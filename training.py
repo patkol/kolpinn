@@ -1,3 +1,6 @@
+# Copyright (c) 2024 ETH Zurich, Patrice Kolb
+
+
 from typing import Callable, Optional
 import copy
 import itertools

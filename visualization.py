@@ -1,3 +1,6 @@
+# Copyright (c) 2024 ETH Zurich, Patrice Kolb
+
+
 from typing import Optional
 from collections.abc import Sequence
 import os

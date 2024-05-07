@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+# Copyright (c) 2024 ETH Zurich, Patrice Kolb
+
 
 import copy
 from collections.abc import Sequence

@@ -1,3 +1,6 @@
+# Copyright (c) 2024 ETH Zurich, Patrice Kolb
+
+
 import os
 
 def get_parameters_path(index: int, data_path: str = ''):
