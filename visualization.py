@@ -1,3 +1,4 @@
+from typing import Optional
 from collections.abc import Sequence
 import os
 import matplotlib.pyplot as plt
@@ -37,6 +38,8 @@ def add_lineplot(
         quantity_label,
         x_dimension,
         lines_dimension = None,
+        *,
+        x_quantity: Optional[torch.Tensor] = None,
         print_raw_data = False,
         quantity_unit = 1,
         quantity_unit_name = None,
@@ -47,7 +50,8 @@ def add_lineplot(
         **kwargs,
     ):
     """
-    Plot the average values of `quantity`.
+    Plot the average values of `quantity` vs. the x_dimension or vs. the
+    averaged x_quantity.
     """
 
     quantity_unit_name = format_unit_name(quantity_unit_name)
@@ -60,17 +64,21 @@ def add_lineplot(
         label = list(f'{lines_dimension} = {v/lines_unit:.2f}' + lines_unit_name
                      for v in grid[lines_dimension])
 
-    tensor = get_avg_tensor(quantity, grid, plot_dimensions)
-    x_values = grid[x_dimension].detach().cpu()
+    y_values = get_avg_tensor(quantity, grid, plot_dimensions)
+    if x_quantity is None:
+        x_values = grid[x_dimension].detach().cpu()
+    else:
+        x_values = get_avg_tensor(x_quantity, grid, plot_dimensions)
+
     if print_raw_data:
         print("x:")
         print(x_values)
         print("y:")
-        print(tensor)
+        print(y_values)
 
     ax.plot(
         x_values / x_unit,
-        tensor / quantity_unit,
+        y_values / quantity_unit,
         label = label,
         **kwargs,
     )
@@ -82,6 +90,9 @@ def save_lineplot(
         quantity_label,
         x_dimension,
         lines_dimension = None,
+        *,
+        x_quantity: Optional[torch.Tensor] = None,
+        x_label: Optional[str] = None,
         path_prefix = None,
         xscale = 'linear',
         yscale = 'linear',
@@ -96,13 +107,21 @@ def save_lineplot(
         x_unit_name = None, #  not used
         lines_unit = 1,
         lines_unit_name = None,
+        plot_kwargs = None,
+        legend = False,
     ):
     """
     Plot the average values of `quantity`
     """
 
+    if x_label is None:
+        assert x_quantity is None
+        x_label = x_dimension
     if path_prefix is None:
         path_prefix = 'plots/'
+    if plot_kwargs is None:
+        plot_kwargs = {}
+
     os.makedirs(path_prefix, exist_ok=True)
     path = path_prefix + f'{quantity_label}_{x_dimension}_{lines_dimension}_lineplot.pdf'
 
@@ -114,6 +133,7 @@ def save_lineplot(
         quantity_label,
         x_dimension,
         lines_dimension,
+        x_quantity = x_quantity,
         print_raw_data = print_raw_data,
         quantity_unit = quantity_unit,
         quantity_unit_name = quantity_unit_name,
@@ -121,15 +141,16 @@ def save_lineplot(
         x_unit_name = x_unit_name, #  not used
         lines_unit = lines_unit,
         lines_unit_name = lines_unit_name,
+        **plot_kwargs,
     )
-    ax.set_xlabel(x_dimension + format_unit_name(x_unit_name))
+    ax.set_xlabel(x_label + format_unit_name(x_unit_name))
     ax.set_ylabel(quantity_label + format_unit_name(quantity_unit_name))
     ax.set_xscale(xscale)
     ax.set_yscale(yscale)
     ax.set_xlim(left=xlim_left, right=xlim_right)
     ax.set_ylim(bottom=ylim_bottom, top=ylim_top)
     ax.grid(visible=True)
-    if not lines_dimension is None:
+    if legend:
         ax.legend()
     fig.savefig(path)
     plt.close(fig)
@@ -276,6 +297,7 @@ def save_complex_polar_plot(
         quantity_unit_name = None,
         lines_unit = 1,
         lines_unit_name = None,
+        legend: bool = False,
     ):
     """
     Plot the average values of `quantity`
@@ -300,7 +322,7 @@ def save_complex_polar_plot(
         lines_unit_name = lines_unit_name,
     )
     ax.grid(visible=True)
-    if not lines_dimension is None:
+    if legend:
         ax.legend()
     fig.savefig(path)
     plt.close(fig)

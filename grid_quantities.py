@@ -80,6 +80,10 @@ class Subgrid(Grid):
                                    else torch.tensor(indices, dtype=torch.long)))
                                  for (label, indices) in indices_dict.items())
 
+        for label, indices in indices_dict.items():
+            assert min(indices) >= 0 and max(indices) < parent_grid.dim_size[label], \
+                   f'{label} {indices} {parent_grid.dim_size}'
+
         dimensions = {}
         for label in parent_grid.dimensions_labels:
             dimension = parent_grid[label]
