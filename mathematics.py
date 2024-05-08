@@ -6,13 +6,15 @@ import copy
 import torch
 
 
-identity = lambda x: x
+def identity(x): x
+
 
 def transform(x, input_range, output_range):
     """Transform ''x'' in ''input_range'' into the ''output_range''"""
     scale_factor = ((output_range[1] - output_range[0]) /
-                    (input_range[1]  - input_range[0]))
+                    (input_range[1] - input_range[0]))
     return (x - input_range[0]) * scale_factor + output_range[0]
+
 
 def complex_abs2(a):
     if a.dtype in (torch.float16, torch.float32, torch.float64):
@@ -20,9 +22,11 @@ def complex_abs2(a):
 
     return torch.real(a)**2 + torch.imag(a)**2
 
+
 def complex_mse(a, b):
     """nn.MSELoss that works for complex numbers"""
     return complex_abs2(b-a).mean()
+
 
 def complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
     """
@@ -47,6 +51,7 @@ def complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
 
     return grad_real + 1j * grad_imag
 
+
 def grad(output: torch.Tensor, input_: torch.Tensor, **kwargs) -> torch.Tensor:
     """
     Possibly complex gradient with ones as the `grad_outputs`
@@ -65,9 +70,9 @@ def grad(output: torch.Tensor, input_: torch.Tensor, **kwargs) -> torch.Tensor:
         grad_outputs_dtype = output.dtype
 
     grad_tensor = grad_function(
-        outputs = output,
-        inputs = input_,
-        grad_outputs = torch.ones_like(output, dtype=grad_outputs_dtype),
+        outputs=output,
+        inputs=input_,
+        grad_outputs=torch.ones_like(output, dtype=grad_outputs_dtype),
         **kwargs,
     )
 
@@ -76,18 +81,20 @@ def grad(output: torch.Tensor, input_: torch.Tensor, **kwargs) -> torch.Tensor:
 
     return grad_tensor
 
+
 def generalized_cartesian_prod(*tensors: torch.Tensor):
     """ Generalized to the cases where only one or no tensor is provided. """
 
     if len(tensors) == 0:
-        return torch.zeros((0,0))
+        return torch.zeros((0, 0))
 
     if len(tensors) == 1:
         tensor = tensors[0]
         assert len(tensor.size()) == 1
-        return tensor.reshape((-1,1))
+        return tensor.reshape((-1, 1))
 
     return torch.cartesian_prod(*tensors)
+
 
 def exchange_dims(tensor: torch.Tensor, dim_1, dim_2):
     permutation = list(range(len(tensor.size())))
@@ -97,30 +104,32 @@ def exchange_dims(tensor: torch.Tensor, dim_1, dim_2):
 
     return permuted_tensor
 
-def remove_duplicates(l: list):
+
+def remove_duplicates(list_: list):
     """
     Return a list excluding exact duplicates in the sense of 'is'.
     """
 
     out = []
-    for i in range(len(l)):
+    for i in range(len(list_)):
         duplicate = False
         for j in range(i):
-            if l[j] is l[i]:
+            if list_[j] is list_[i]:
                 duplicate = True
                 break
         if not duplicate:
-            out.append(l[i])
+            out.append(list_[i])
 
     return out
+
 
 def expand(tensor_in: torch.Tensor, shape_target, indices_in):
     """
     Expand tensor to the `shape_target`.
     The dimension `in_dim` in the input tensor will
     be dimension `indices[in_dim]` in the output tensor.
-    The remaining dimensions of the output tensor will be singletons, independent
-    of the value in `shape_target`.
+    The remaining dimensions of the output tensor will be singletons,
+    independent of the value in `shape_target`.
     indices_in must be in ascending order.
     """
 
@@ -145,6 +154,7 @@ def expand(tensor_in: torch.Tensor, shape_target, indices_in):
 
     return tensor_in.reshape(shape_out)
 
+
 def interleave(tensor1: torch.Tensor, tensor2: torch.Tensor, *, dim: int):
     """
     Interleave the two tensors along `dim`.
@@ -158,11 +168,11 @@ def interleave(tensor1: torch.Tensor, tensor2: torch.Tensor, *, dim: int):
     if different_lengths:
         # Treat the last column of tensor1 separately
         slices = [slice(None)] * n_dim
-        slices[dim] = slice(0,-1)
+        slices[dim] = slice(0, -1)
         full_tensor1 = tensor1
         tensor1 = full_tensor1[slices]
         shape1 = list(tensor1.size())
-        slices[dim] = slice(-1,None)
+        slices[dim] = slice(-1, None)
         last_column = full_tensor1[slices]
 
     assert shape1 == shape2

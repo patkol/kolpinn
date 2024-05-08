@@ -21,35 +21,38 @@ def get_numpy_losses(losses, loss_aggregate_function):
     """
 
     numpy_losses = np.array([loss.item() for loss in losses.values()])
-    numpy_losses = np.append(numpy_losses, [loss_aggregate_function(losses.values()).item()])
+    numpy_losses = np.append(
+        numpy_losses,
+        [loss_aggregate_function(losses.values()).item()],
+    )
 
     return numpy_losses
 
 
 class Trainer:
     def __init__(
-            self,
-            *,
-            models: list[MultiModel],
-            batchers_training: dict[str,Batcher],
-            batchers_validation: dict[str,Batcher],
-            used_losses: dict[str,list[str]],
-            trained_models_labels: list[str],
-            Optimizer,
-            optimizer_kwargs: dict,
-            optimizer_reset_tol: float = float('inf'),
-            Scheduler = None,
-            scheduler_kwargs: Optional[dict] = None,
-            saved_parameters_index: int,
-            save_optimizer: bool,
-            loss_aggregate_function: Optional[Callable] = None,
-            name: str,
-        ):
+        self,
+        *,
+        models: list[MultiModel],
+        batchers_training: dict[str, Batcher],
+        batchers_validation: dict[str, Batcher],
+        used_losses: dict[str, list[str]],
+        trained_models_labels: list[str],
+        Optimizer,
+        optimizer_kwargs: dict,
+        optimizer_reset_tol: float = float('inf'),
+        Scheduler=None,
+        scheduler_kwargs: Optional[dict] = None,
+        saved_parameters_index: int,
+        save_optimizer: bool,
+        loss_aggregate_function: Optional[Callable] = None,
+        name: str,
+    ):
         """
         `used_losses[grid_name]` contains the quantities in `qs[grid_name]`
         that will be used as a loss.
         The loss models referred to by `used_losses` may have a
-        `with_grad` and/or `qs_full` keyword, it will be controlled by the 
+        `with_grad` and/or `qs_full` keyword, it will be controlled by the
         trainer.
         `loss_aggregate_function(losses)` returns the total loss given the
         iterable `losses`.
@@ -59,7 +62,7 @@ class Trainer:
             scheduler_kwargs = {}
 
         if loss_aggregate_function is None:
-            loss_aggregate_function = lambda losses: sum(losses)
+            def loss_aggregate_function(losses): return sum(losses)
 
         self.models = models
         self.batchers_training = batchers_training
@@ -72,8 +75,9 @@ class Trainer:
         self.loss_aggregate_function = loss_aggregate_function
         self.name = name
 
-        self.trained_models = [model for model in models
-                                     if model.name in trained_models_labels]
+        self.trained_models = [model
+                               for model in models
+                               if model.name in trained_models_labels]
         self.all_parameters = list(itertools.chain.from_iterable(
             [model.parameters for model in self.trained_models],
         ))
@@ -92,21 +96,20 @@ class Trainer:
         self.training_start_time = None
         self.min_validation_loss = None
         # loss_names: In the same order as the training histories
-        self.loss_names = copy.copy(self.used_losses_list) 
+        self.loss_names = copy.copy(self.used_losses_list)
         self.loss_names += ['Total']
 
         # PROFILING
         self.evaluation_times = {}
 
     def train(
-            self,
-            *,
-            report_each: int,
-            max_n_steps = None,
-            max_time = None,
-            min_loss = None,
-        ):
-
+        self,
+        *,
+        report_each: int,
+        max_n_steps=None,
+        max_time=None,
+        min_loss=None,
+    ):
         print(f'\n\nTraining {self.name}\n')
 
         self.training_start_time = time.perf_counter()
@@ -119,15 +122,15 @@ class Trainer:
                 stop = True
             time_passed = time.perf_counter() - self.training_start_time
             if (max_time is not None
-                and time_passed >= max_time):
+                    and time_passed >= max_time):
                 print(f'{time_passed:.1f}s passed, stopping')
                 stop = True
 
             if step_index % report_each == 0 or stop:
-                self.validate(step_index, max_n_steps, save_if_best = True)
+                self.validate(step_index, max_n_steps, save_if_best=True)
 
             if (min_loss is not None
-                and self.validation_loss_history[-1][-1] <= min_loss):
+                    and self.validation_loss_history[-1][-1] <= min_loss):
                 print(f'Validation loss {self.validation_loss_history[-1][-1]} reached, stopping')
                 stop = True
 
@@ -139,7 +142,8 @@ class Trainer:
 
             if ((not torch.isfinite(torch.tensor(self.training_loss_history[-1][-1])))
                 or (self.min_validation_loss is not None
-                    and self.training_loss_history[-1][-1] > self.optimizer_reset_tol * self.min_validation_loss)):
+                    and (self.training_loss_history[-1][-1]
+                         > self.optimizer_reset_tol * self.min_validation_loss))):
                 print(f'Loss became nonfinite/large in step {step_index}, resetting the optimizer...')
                 self.load(
                     self.saved_parameters_index,
@@ -148,15 +152,16 @@ class Trainer:
                 )
                 self.optimizer.load_state_dict(copy.deepcopy(self.initial_optimizer_state_dict))
 
-
     def validate(self, step_index, max_n_steps, *, save_if_best):
         for model in self.models:
             model.set_eval()
 
-        max_n_steps_string = '  -  ' if max_n_steps is None else f'{max_n_steps:>5d}'
+        max_n_steps_string = ('  -  '
+                              if max_n_steps is None
+                              else f'{max_n_steps:>5d}')
         print(f'[{step_index:>5d}/{max_n_steps_string}]')
-        self.get_validation_losses(save_if_best = save_if_best)
-        if not self.scheduler is None:
+        self.get_validation_losses(save_if_best=save_if_best)
+        if self.scheduler is not None:
             self.scheduler.step(self.validation_loss_history[-1][-1])
 
     def step(self):
@@ -169,7 +174,6 @@ class Trainer:
             self.closure()
             self.optimizer.step()
 
-
     def _extract_losses(self, qs):
         losses = {}
         for grid_name, loss_names in self.used_losses.items():
@@ -178,7 +182,6 @@ class Trainer:
                 losses[loss_name] = q[loss_name].mean()
 
         return losses
-
 
     def set_losses_kwargs(self, **kwargs):
         for multi_model in self.models:
@@ -194,18 +197,18 @@ class Trainer:
                     if hasattr(model, 'kwargs') and label in model.kwargs:
                         model.kwargs[label] = arg
 
-
     def get_extended_qs(self, *, for_training):
         # TODO: Support for combining batches
-        batchers = self.batchers_training if for_training else self.batchers_validation
+        batchers = (self.batchers_training if for_training
+                    else self.batchers_validation)
         qs = get_qs(batchers)
         for model in self.models:
-            #print(f"Evaluating '{model.name}'") # DEBUG
-            eval_start_time = time.perf_counter_ns() # PROFILING
+            # print(f"Evaluating '{model.name}'")  # DEBUG
+            eval_start_time = time.perf_counter_ns()  # PROFILING
 
             # Provide qs_full if necessary
             if 'qs_full' in model.kwargs:
-                qs_full = dict((grid_name, batcher.q_full) 
+                qs_full = dict((grid_name, batcher.q_full)
                                for grid_name, batcher in batchers.items())
                 model.kwargs['qs_full'] = qs_full
             model.apply(qs)
@@ -213,17 +216,16 @@ class Trainer:
             # PROFILING
             eval_time = time.perf_counter_ns() - eval_start_time
             label = f'{model.name}'
-            if not label in self.evaluation_times:
+            if label not in self.evaluation_times:
                 self.evaluation_times[label] = 0
             self.evaluation_times[label] += eval_time
 
         return qs
 
-
     def get_training_losses(self):
         set_requires_grad_models(True, self.trained_models)
-        self.set_losses_kwargs(with_grad = True)
-        qs = self.get_extended_qs(for_training = True)
+        self.set_losses_kwargs(with_grad=True)
+        qs = self.get_extended_qs(for_training=True)
         losses = self._extract_losses(qs)
 
         # History
@@ -244,7 +246,7 @@ class Trainer:
     def get_validation_losses(self, save_if_best):
         set_requires_grad_models(False, self.trained_models)
         self.set_losses_kwargs(with_grad=False)
-        qs = self.get_extended_qs(for_training = False)
+        qs = self.get_extended_qs(for_training=False)
         losses = self._extract_losses(qs)
 
         # History
@@ -261,7 +263,7 @@ class Trainer:
         )
 
         # Print
-        training_losses = (self.training_loss_history[-1,:]
+        training_losses = (self.training_loss_history[-1, :]
                            if len(self.training_loss_history) > 0
                            else float('nan') * np.ones(self.n_losses+1))
         training_loss_time = (self.training_loss_times[-1]
@@ -274,14 +276,13 @@ class Trainer:
         print()
 
         # Save
-        if save_if_best and (self.min_validation_loss == None
+        if save_if_best and (self.min_validation_loss is None
                              or numpy_losses[-1] < self.min_validation_loss):
             # Saving at step 0 as well to reserve the `saved_parameters_index`
             self.save()
             self.min_validation_loss = numpy_losses[-1]
 
         return losses
-
 
     def closure(self):
         """
@@ -294,7 +295,6 @@ class Trainer:
         loss.backward(inputs=self.all_parameters)
 
         return loss
-
 
     def save(self):
         path = get_parameters_path(self.saved_parameters_index)
@@ -310,13 +310,18 @@ class Trainer:
         }
         if self.save_optimizer:
             save_dict['optimizer_state_dict'] = self.optimizer.state_dict()
-        if not self.scheduler is None:
+        if self.scheduler is not None:
             save_dict['scheduler_state_dict'] = self.scheduler.state_dict()
 
         torch.save(save_dict, path + self.name + '.pth')
 
-
-    def load(self, parameters_index, *, load_optimizer: bool, load_scheduler: bool):
+    def load(
+        self,
+        parameters_index,
+        *,
+        load_optimizer: bool,
+        load_scheduler: bool,
+    ):
         if parameters_index is None:
             return
 
@@ -333,10 +338,8 @@ class Trainer:
         if load_scheduler:
             self.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
 
-
     def load_models(self, loaded_models):
         assert len(loaded_models) == len(self.models)
         for model, loaded_model in zip(self.models, loaded_models):
             assert model.name == loaded_model.name
             model.replace_parameters(loaded_model.parameters)
-

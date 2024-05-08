@@ -3,8 +3,10 @@
 
 import os
 
+
 def get_parameters_path(index: int, data_path: str = ''):
     return data_path + f'parameters/{index:04d}/'
+
 
 def get_next_parameters_index(data_path: str = ''):
     index = 1

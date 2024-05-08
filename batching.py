@@ -1,7 +1,7 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
-from typing import Optional, Callable
+from typing import Optional
 import copy
 import random
 import itertools
@@ -11,13 +11,13 @@ from .grid_quantities import Grid, Subgrid, QuantityDict, restrict_quantities
 
 class Batcher:
     def __init__(
-            self,
-            q_full: QuantityDict,
-            grid_full: Grid,
-            batch_dimensions: list,
-            batch_sizes: list,
-            additional_indices_dict: Optional[dict] = None,
-        ):
+        self,
+        q_full: QuantityDict,
+        grid_full: Grid,
+        batch_dimensions: list,
+        batch_sizes: list,
+        additional_indices_dict: Optional[dict] = None,
+    ):
         """
         The `additional_indices_dict` can restrict the accessible grid points.
         """
@@ -61,7 +61,8 @@ class Batcher:
         """
 
         indices_lists = []
-        for batch_dimension, batch_size in zip(self.batch_dimensions, self.batch_sizes):
+        for batch_dimension, batch_size in zip(self.batch_dimensions,
+                                               self.batch_sizes):
             indices_list = []
             dim_size = self.grid_full.dim_size[batch_dimension]
             for start_index in range(0, dim_size, batch_size):
@@ -73,13 +74,14 @@ class Batcher:
         batches = []
         for indices_lists_batch in itertools.product(*indices_lists):
             indices_dict = copy.copy(self.additional_indices_dict)
-            for batch_dimension, indices_list in zip(self.batch_dimensions, indices_lists_batch):
+            for batch_dimension, indices_list in zip(self.batch_dimensions,
+                                                     indices_lists_batch):
                 indices_dict[batch_dimension] = indices_list
             batches.append(self._get_q(indices_dict))
 
         return batches
 
 
-def get_qs(batchers: dict[str,Batcher]):
+def get_qs(batchers: dict[str, Batcher]):
     return dict((grid_name, batcher())
                 for grid_name, batcher in batchers.items())
