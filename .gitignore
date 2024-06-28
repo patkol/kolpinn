@@ -2,7 +2,7 @@
 deprecated.txt
 *.vim
 *.code-workspace
-
+ignored/
 
 # Below: github/gitignore/Python.gitignore
 

@@ -104,6 +104,14 @@ class Subgrid(Grid):
                 + textwrap.indent(f'indices_dict={self.indices_dict}),\n', '    ')
                 + ')')
 
+    def descends_from(self, grid: Grid):
+        """ Whether any possibly higher level parent is grid """
+        if self.parent_grid is grid:
+            return True
+        if not isinstance(self.parent_grid, Subgrid):
+            return False
+        return self.parent_grid.descends_from(grid)
+
 
 class Supergrid(Grid):
     def __init__(
@@ -118,7 +126,7 @@ class Supergrid(Grid):
         child grids:
         `dimensions[dimension_name][self.indices_dict[child_grid_name]]`
         corresponds to
-        `child_grid.dimensions[dimension_name]`
+        `child_grid.dimensions[dimension_name]`.
         `subgrids` contains the `child_grids` as `Subgrid`s of `self`.
         """
 
@@ -163,15 +171,28 @@ class Supergrid(Grid):
 
 
 class QuantityDict(collections.UserDict):
-    """ The values must be tensors """
+    """
+    A dictionary of quantities of type `torch.Tensor` on a common `grid`.
+    Overwriting is only possible through the 'overwrite' function in order to
+    catch performance bugs.
+    """
+
     def __init__(self, grid: Grid, *args, **kwargs):
         self.grid = grid
+        self._allow_overwrite = False
         super().__init__(*args, **kwargs)
 
     def __setitem__(self, label: str, quantity):
+        assert self._allow_overwrite or label not in self, label
         assert torch.is_tensor(quantity), quantity
         assert compatible(quantity, self.grid), quantity
         super().__setitem__(label, quantity)
+
+    def overwrite(self, label: str, quantity):
+        assert label in self, label
+        self._allow_overwrite = True
+        self.__setitem__(label, quantity)
+        self._allow_overwrite = False
 
 
 def compatible(tensor: torch.Tensor, grid: Grid) -> bool:
@@ -420,8 +441,11 @@ def restrict(tensor: torch.Tensor, subgrid: Grid) -> torch.Tensor:
     If `tensor` is already compatible with `subgrid`, no restriction
     is performed.
     """
+
     if compatible(tensor, subgrid):
         return tensor
+
+    assert isinstance(subgrid, Subgrid)
 
     restricted_tensor = tensor
     for dim, label in enumerate(subgrid.dimensions_labels):
@@ -491,8 +515,12 @@ def unsqueeze_to(
 
 
 def combine_quantity(quantity_list, subgrid_list, grid: Grid):
-    """Combine tensors on subgrids of `grid` to a tensor on `grid`"""
+    """
+    Combine tensors on subgrids of `grid` to a tensor on `grid`.
+    All subgrids need to slice the same dimensions.
+    """
 
+    assert len(quantity_list) == len(subgrid_list)
     if len(quantity_list) == 1:
         assert compatible(quantity_list[0], subgrid_list[0])
         assert compatible(quantity_list[0], grid)
@@ -502,8 +530,22 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
     # reduced_dimensions_labels: dims that got sliced in the subgrids
     reduced_dimensions_labels = set(subgrid_list[0].indices_dict.keys())
 
-    tensor = torch.zeros(grid.shape, dtype=dtype)
-    covered = torch.zeros(grid.shape, dtype=torch.bool)
+    output_shape = [1] * grid.n_dim
+    for i, label in enumerate(grid.dimensions_labels):
+        expand_dimension = False
+
+        if label in reduced_dimensions_labels:
+            expand_dimension = True
+
+        for quantity, subgrid in zip(quantity_list, subgrid_list):
+            if might_depend_on(label, quantity, subgrid):
+                expand_dimension = True
+
+        if expand_dimension:
+            output_shape[i] = grid.dim_size[label]
+
+    tensor = torch.zeros(output_shape, dtype=dtype)
+    covered = torch.zeros(output_shape, dtype=torch.bool)
 
     for quantity, subgrid in zip(quantity_list, subgrid_list):
         assert compatible(quantity, subgrid)

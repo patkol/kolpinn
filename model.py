@@ -290,7 +290,7 @@ class TransformedModel(Model):
     def apply(self, q: QuantityDict):
         transformed_q = copy.copy(q)
         for label, transformation in self.input_transformations.items():
-            transformed_q[label] = transformation(q[label], q)
+            transformed_q.overwrite(label, transformation(q[label], q))
         child_output = self.child_model.apply(transformed_q)
         transformed_output = self.output_transformation(child_output, q)
         transformed_output = transformed_output.to(self.output_dtype)

@@ -2,7 +2,6 @@
 
 
 import copy
-
 import torch
 
 
@@ -11,6 +10,12 @@ def identity(x): x
 
 def transform(x, input_range, output_range):
     """Transform ''x'' in ''input_range'' into the ''output_range''"""
+
+    assert len(input_range) == 2, input_range
+    assert len(output_range) == 2, output_range
+    assert input_range[0] < input_range[1]
+    assert output_range[0] < output_range[1]
+
     scale_factor = ((output_range[1] - output_range[0]) /
                     (input_range[1] - input_range[0]))
     return (x - input_range[0]) * scale_factor + output_range[0]

@@ -161,7 +161,7 @@ def save_lineplot(
     ax.grid(visible=True)
     if legend:
         ax.legend()
-    fig.savefig(path)
+    fig.savefig(path, bbox_inches='tight')
     plt.close(fig)
 
 
@@ -255,7 +255,7 @@ def save_heatmap(
         y_unit_name,
         **kwargs,
     )
-    fig.savefig(path)
+    fig.savefig(path, bbox_inches='tight')
     plt.close(fig)
 
 
@@ -333,7 +333,7 @@ def save_complex_polar_plot(
     ax.grid(visible=True)
     if legend:
         ax.legend()
-    fig.savefig(path)
+    fig.savefig(path, bbox_inches='tight')
     plt.close(fig)
 
 
@@ -364,5 +364,5 @@ def save_training_history_plot(trainer: training.Trainer, path_prefix=None):
     )
     ax.set_yscale('log')
     ax.legend()
-    fig.savefig(path)
+    fig.savefig(path, bbox_inches='tight')
     plt.close(fig)

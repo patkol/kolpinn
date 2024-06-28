@@ -13,7 +13,6 @@ class Batcher:
     def __init__(
         self,
         q_full: QuantityDict,
-        grid_full: Grid,
         batch_dimensions: list,
         batch_sizes: list,
         additional_indices_dict: Optional[dict] = None,
@@ -31,7 +30,7 @@ class Batcher:
         assert len(batch_dimensions) == len(batch_sizes)
 
         self.q_full = q_full
-        self.grid_full = grid_full
+        self.grid_full = q_full.grid
         self.batch_dimensions = batch_dimensions
         self.batch_sizes = batch_sizes
 
@@ -39,6 +38,12 @@ class Batcher:
         """
         Sample each dimension randomly without replacement and in order
         """
+
+        # TEMP (inconsistent Grid/Subgrid)
+        if len(self.batch_dimensions) == 0 and len(self.additional_indices_dict) == 0:
+            # IDEA: separate TrivialBatcher class instead
+            return copy.copy(self.q_full)
+
         indices_dict = copy.copy(self.additional_indices_dict)
         for batch_dimension, batch_size in zip(self.batch_dimensions, self.batch_sizes):
             all_indices = range(self.grid_full.dim_size[batch_dimension])
