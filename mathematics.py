@@ -21,32 +21,44 @@ def transform(x, input_range, output_range):
     return (x - input_range[0]) * scale_factor + output_range[0]
 
 
-def complex_abs2(a):
+def complex_abs2(a: torch.Tensor) -> torch.Tensor:
     if a.dtype in (torch.float16, torch.float32, torch.float64):
         return a**2
 
     return torch.real(a)**2 + torch.imag(a)**2
 
 
-def complex_mse(a, b):
+def complex_mse(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """nn.MSELoss that works for complex numbers"""
     return complex_abs2(b-a).mean()
 
 
-def complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
+def _complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
     """
-    Derives the real and imaginary parts of 'outputs' seperately.
+    Derives the complex output by the real input.
 
     ''torch.autograd.grad'' calculates the Wirtinger derivative instead.
     There is no support for sequences of tensors right now.
     """
 
+    assert torch.is_complex(outputs)
+    assert not torch.is_complex(inputs)
+
+    # We need to `retain_graph` for the real gradient such that the graph
+    # will be avaliable for the complex one.
+    retain_graph = None
+    if 'retain_graph' in kwargs:
+        retain_graph = kwargs['retain_graph']
+
+    kwargs['retain_graph'] = True
     grad_real, = torch.autograd.grad(
         torch.real(outputs),
         inputs,
         *args,
         **kwargs,
     )
+
+    kwargs['retain_graph'] = retain_graph
     grad_imag, = torch.autograd.grad(
         torch.imag(outputs),
         inputs,
@@ -63,28 +75,26 @@ def grad(output: torch.Tensor, input_: torch.Tensor, **kwargs) -> torch.Tensor:
     kwargs example: retain_graph=True, create_graph=True
     """
 
-    grad_function = (complex_grad
-                     if torch.is_complex(output)
-                     else torch.autograd.grad)
+    assert not torch.is_complex(input_)
 
-    if output.dtype == torch.complex64:
-        grad_outputs_dtype = torch.float32
-    elif output.dtype == torch.complex128:
-        grad_outputs_dtype = torch.float64
-    else:
-        grad_outputs_dtype = output.dtype
+    grad_outputs=torch.ones_like(output, dtype=torch.int8)
 
-    grad_tensor = grad_function(
+    if torch.is_complex(output):
+        grad_tensor = _complex_grad(
+            outputs=output,
+            inputs=input_,
+            grad_outputs=grad_outputs,
+            **kwargs,
+        )
+        return grad_tensor
+
+    grad_tensors = torch.autograd.grad(
         outputs=output,
         inputs=input_,
-        grad_outputs=torch.ones_like(output, dtype=grad_outputs_dtype),
+        grad_outputs=grad_outputs,
         **kwargs,
     )
-
-    if grad_function is torch.autograd.grad:
-        grad_tensor = grad_tensor[0]
-
-    return grad_tensor
+    return grad_tensors[0]
 
 
 def generalized_cartesian_prod(*tensors: torch.Tensor):
@@ -128,18 +138,18 @@ def remove_duplicates(list_: list):
     return out
 
 
-def expand(tensor_in: torch.Tensor, shape_target, indices_in):
+def expand(tensor_in: torch.Tensor, shape_target, indices):
     """
     Expand tensor to the `shape_target`.
     The dimension `in_dim` in the input tensor will
     be dimension `indices[in_dim]` in the output tensor.
     The remaining dimensions of the output tensor will be singletons,
     independent of the value in `shape_target`.
-    indices_in must be in ascending order.
+    `indices` must be in ascending order.
     """
 
     if len(tensor_in.size()) == 0:
-        assert indices_in == []
+        assert indices == []
         shape_out = [1] * len(shape_target)
 
     else:
@@ -147,46 +157,65 @@ def expand(tensor_in: torch.Tensor, shape_target, indices_in):
         in_dim = 0
         for out_dim in range(len(shape_target)):
             dim_size_out = 1
-            if in_dim < len(indices_in) and out_dim == indices_in[in_dim]:
+            if in_dim < len(indices) and out_dim == indices[in_dim]:
                 dim_size_out = shape_target[out_dim]
                 assert tensor_in.size(in_dim) == dim_size_out
                 in_dim += 1
 
             shape_out.append(dim_size_out)
 
-        assert in_dim == len(indices_in), \
-               f"indices_in={indices_in} might not be ordered"
+        assert in_dim == len(indices), \
+               f"indices={indices} might not be ordered"
 
     return tensor_in.reshape(shape_out)
+
+
+def _interleave_equal_lengths(
+    tensor1: torch.Tensor,
+    tensor2: torch.Tensor,
+    *,
+    dim: int,
+):
+    size = list(tensor1.size())
+    assert list(tensor2.size()) == size
+
+    size[dim] *= 2
+
+    return torch.stack((tensor1, tensor2), dim=dim+1).view(*size)
+
+
+def _interleave_different_lengths(
+    tensor1: torch.Tensor,
+    tensor2: torch.Tensor,
+    *,
+    dim: int,
+):
+    size1 = list(tensor1.size())
+    n_dim = len(size1)
+
+    size2 = copy.copy(size1)
+    size2[dim] -= 1
+    assert tensor2.size() == tuple(size2)
+
+    # Treat the last column of tensor1 separately
+    slices = [slice(None)] * n_dim
+    slices[dim] = slice(0, -1)
+    tensor1_sliced = tensor1[slices]
+    slices[dim] = slice(-1, None)
+    last_column = tensor1[slices]
+
+    out_sliced = _interleave_equal_lengths(tensor1_sliced, tensor2, dim=dim)
+
+    return torch.cat((out_sliced, last_column), dim)
 
 
 def interleave(tensor1: torch.Tensor, tensor2: torch.Tensor, *, dim: int):
     """
     Interleave the two tensors along `dim`.
+    `tensor1` can be one longer than `tensor2`, the other dimension must match.
     """
 
-    shape1 = list(tensor1.size())
-    shape2 = list(tensor2.size())
-    n_dim = len(shape1)
+    if tensor1.size() == tensor2.size():
+        return _interleave_equal_lengths(tensor1, tensor2, dim=dim)
 
-    different_lengths = shape2[dim] == shape1[dim] - 1
-    if different_lengths:
-        # Treat the last column of tensor1 separately
-        slices = [slice(None)] * n_dim
-        slices[dim] = slice(0, -1)
-        full_tensor1 = tensor1
-        tensor1 = full_tensor1[slices]
-        shape1 = list(tensor1.size())
-        slices[dim] = slice(-1, None)
-        last_column = full_tensor1[slices]
-
-    assert shape1 == shape2
-
-    shape_out = copy.copy(shape1)
-    shape_out[dim] += shape2[dim]
-    out = torch.stack((tensor1, tensor2), dim=dim+1).view(*shape_out)
-
-    if different_lengths:
-        out = torch.cat((out, last_column), dim)
-
-    return out
+    return _interleave_different_lengths(tensor1, tensor2, dim=dim)
