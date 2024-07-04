@@ -86,6 +86,9 @@ class Trainer:
         self.initial_optimizer_state_dict = copy.deepcopy(self.optimizer.state_dict())
         self.scheduler = (None if Scheduler is None
                           else Scheduler(self.optimizer, **scheduler_kwargs))
+        # How many times the current saved parameters have been loaded, affects
+        # the learn rate
+        self.n_loaded_current_parameters = 0
 
         self.used_losses_list = list(itertools.chain.from_iterable(used_losses.values()))
         self.n_losses = len(self.used_losses_list)
@@ -151,6 +154,12 @@ class Trainer:
                     load_scheduler=False,
                 )
                 self.optimizer.load_state_dict(copy.deepcopy(self.initial_optimizer_state_dict))
+                if self.n_loaded_current_parameters > 0:
+                    for g in self.optimizer.param_groups:
+                        reduction_factor = self.n_loaded_current_parameters + 1
+                        lr = g['lr'] / reduction_factor
+                        g['lr'] = lr
+                        print(f'Learning rate reduced by a factor of {reduction_factor} to {lr} until the next reset')
 
     def validate(self, step_index, max_n_steps, *, save_if_best):
         for model in self.models:
@@ -314,6 +323,7 @@ class Trainer:
             save_dict['scheduler_state_dict'] = self.scheduler.state_dict()
 
         torch.save(save_dict, path + self.name + '.pth')
+        self.n_loaded_current_parameters = 0
 
     def load(
         self,
@@ -337,6 +347,7 @@ class Trainer:
             self.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
         if load_scheduler:
             self.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
+        self.n_loaded_current_parameters += 1
 
     def load_models(self, loaded_models):
         assert len(loaded_models) == len(self.models)

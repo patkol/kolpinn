@@ -2,7 +2,7 @@
 
 
 import copy
-from collections.abc import Sequence
+from collections.abc import Sequence, Iterable
 import textwrap
 import math
 import torch
@@ -83,8 +83,10 @@ class Subgrid(Grid):
                                  for (label, indices) in indices_dict.items())
 
         for label, indices in indices_dict.items():
-            assert min(indices) >= 0 and max(indices) < parent_grid.dim_size[label], \
-                   f'{label} {indices} {parent_grid.dim_size}'
+            assert (len(indices) == 0
+                    or (min(indices) >= 0
+                        and max(indices) < parent_grid.dim_size[label])), \
+                f'{label} {indices} {parent_grid.dim_size}'
 
         dimensions = {}
         for label in parent_grid.dimensions_labels:
@@ -493,18 +495,22 @@ def squeeze_to(
         index = new_index
         dimensions_to_squeeze.remove(index)
 
+    for dimension_to_squeeze in dimensions_to_squeeze:
+        assert tensor.size(dim=dimension_to_squeeze) == 1
+
     return tensor.squeeze(dimensions_to_squeeze)
 
 
 def unsqueeze_to(
     grid: Grid,
     tensor: torch.Tensor,
-    dimensions_labels: list[str],
+    dimensions_labels: Iterable[str],
 ) -> torch.Tensor:
     """
     tensor[i, j, ...]: value at
     (grid[dimensions_labels[0]][i], grid[dimensions_labels[1]][j], ...)
     Returns the corresponding tensor on the `grid`.
+    The input `tensor` must span over all gridpoints in its dimensions.
     """
 
     tensor_indices = [grid.index[label] for label in dimensions_labels]
@@ -521,10 +527,10 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
     """
 
     assert len(quantity_list) == len(subgrid_list)
-    if len(quantity_list) == 1:
-        assert compatible(quantity_list[0], subgrid_list[0])
-        assert compatible(quantity_list[0], grid)
-        return quantity_list[0]
+    #if len(quantity_list) == 1:
+    #    assert compatible(quantity_list[0], subgrid_list[0])
+    #    assert compatible(quantity_list[0], grid)
+    #    return quantity_list[0]
 
     dtype = quantity_list[0].dtype
     # reduced_dimensions_labels: dims that got sliced in the subgrids
@@ -551,7 +557,8 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
         assert compatible(quantity, subgrid)
         assert subgrid.parent_grid is grid
         assert quantity.dtype is dtype
-        assert set(subgrid.indices_dict.keys()) == reduced_dimensions_labels
+        assert set(subgrid.indices_dict.keys()) == reduced_dimensions_labels, \
+               'Different dimensions are sliced in the subgrids'
 
         sub_tensor = torch.clone(quantity)
         sub_covered = torch.ones_like(sub_tensor, dtype=torch.bool)
@@ -573,6 +580,9 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
             sub_tensor = new_tensor
             sub_covered = new_covered
 
+        assert not torch.any(torch.logical_and(covered, sub_covered)), \
+               'Double coverage'
+
         tensor += sub_tensor
         covered += sub_covered
 
@@ -582,8 +592,12 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
 
 
 def combine_quantities(qs: Sequence[QuantityDict], grid: Grid):
+    labels = set(qs[0].keys())
+    for q in qs:
+        assert set(q.keys()) == labels
+
     q_combined = QuantityDict(grid)
-    for label in qs[0].keys():
+    for label in labels:
         q_combined[label] = combine_quantity(
             [q[label] for q in qs],
             [q.grid for q in qs],
