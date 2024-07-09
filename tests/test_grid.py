@@ -4,7 +4,7 @@
 import copy
 import torch
 
-from kolpinn import grid_quantities
+from kolpinn import grids
 
 import utilities
 
@@ -25,7 +25,7 @@ def test_Grid_get_subgrids():
     b_tensor = torch.tensor([-7.1, -1.2, 0.2, 5.2], dtype=dtype)
     c_tensor = torch.tensor([8], dtype=dtype)
     dimensions = {'a': a_tensor, 'b': b_tensor, 'c': c_tensor}
-    grid = grid_quantities.Grid(dimensions)
+    grid = grids.Grid(dimensions)
     def greater_than_one(x): return x > 1
     conditions_dicts = {
         'positive_b': {'b': lambda x: x>0},
@@ -64,8 +64,8 @@ def test_Subgrid():
         'c': torch.tensor([1]),
     }
 
-    subgrid = grid_quantities.Subgrid(parent_grid, indices_dict, copy_all=False)
-    subsubgrid = grid_quantities.Subgrid(subgrid, {}, copy_all=True)
+    subgrid = grids.Subgrid(parent_grid, indices_dict, copy_all=False)
+    subsubgrid = grids.Subgrid(subgrid, {}, copy_all=True)
 
     assert subgrid['a'][0] == parent_grid['a'][2]
     assert subgrid['a'][1] == parent_grid['a'][1]
@@ -81,7 +81,7 @@ def test_Subgrid_full():
     parent_sizes = {'a': 3, 'b': 1, 'c': 2}
     parent_grid = utilities.get_random_grid(parent_sizes, seed=0)
 
-    subgrid = grid_quantities.Subgrid(parent_grid, {}, copy_all=False)
+    subgrid = grids.Subgrid(parent_grid, {}, copy_all=False)
 
     for key in parent_sizes.keys():
         assert subgrid[key] is parent_grid[key]
@@ -92,7 +92,7 @@ def test_Subgrid_empty():
     parent_grid = utilities.get_random_grid(parent_sizes, seed=0)
     indices_dict: dict = dict((key, []) for key in parent_sizes.keys())
 
-    subgrid = grid_quantities.Subgrid(parent_grid, indices_dict, copy_all=True)
+    subgrid = grids.Subgrid(parent_grid, indices_dict, copy_all=True)
 
     for key in parent_sizes.keys():
         assert subgrid.dim_size[key] == 0
@@ -106,12 +106,12 @@ def test_Supergrid():
     child3_dimensions = copy.copy(child1_dimensions)
     child3_dimensions['b'] = utilities.get_random_tensor(size=(2,), seed=3)
     child_grids = {
-        'child1': grid_quantities.Grid(child1_dimensions),
-        'child2': grid_quantities.Grid(child2_dimensions),
-        'child3': grid_quantities.Grid(child3_dimensions),
+        'child1': grids.Grid(child1_dimensions),
+        'child2': grids.Grid(child2_dimensions),
+        'child3': grids.Grid(child3_dimensions),
     }
 
-    supergrid = grid_quantities.Supergrid(child_grids, 'b', copy_all=False)
+    supergrid = grids.Supergrid(child_grids, 'b', copy_all=False)
 
     assert supergrid['a'] is child_grids['child1']['a']
     assert supergrid['c'] is child_grids['child3']['c']
@@ -132,7 +132,7 @@ def test_Supergrid_single():
     child_grid = utilities.get_random_grid(child_sizes, seed=0)
     child_grids = {'child': child_grid}
 
-    supergrid = grid_quantities.Supergrid(child_grids, 'c', copy_all=False)
+    supergrid = grids.Supergrid(child_grids, 'c', copy_all=False)
 
     assert supergrid['a'] is child_grid['a']
     assert supergrid['b'] is child_grid['b']

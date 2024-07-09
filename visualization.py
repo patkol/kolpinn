@@ -7,7 +7,7 @@ import os
 import matplotlib.pyplot as plt  # type: ignore
 import torch
 
-from .grid_quantities import Grid
+from .grids import Grid
 from . import training
 
 

@@ -3,7 +3,7 @@
 
 import torch
 
-from kolpinn import grid_quantities
+from kolpinn import grids
 
 
 def get_random_tensor(*, size, seed, **kwargs):
@@ -21,4 +21,4 @@ def get_random_dimensions(sizes, *, seed: int, **kwargs):
 
 def get_random_grid(sizes, *, seed: int, **kwargs):
     dimensions = get_random_dimensions(sizes, seed=seed, **kwargs)
-    return grid_quantities.Grid(dimensions)
+    return grids.Grid(dimensions)

@@ -6,7 +6,8 @@ import copy
 import random
 import itertools
 
-from .grid_quantities import Grid, Subgrid, QuantityDict, restrict_quantities
+from .grids import Grid, Subgrid
+from .quantities import QuantityDict, restrict_quantities
 
 
 class Batcher:

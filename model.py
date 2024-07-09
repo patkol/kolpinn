@@ -9,9 +9,10 @@ import torch
 from torch import nn
 
 from . import mathematics
-from . import grid_quantities
-from .grid_quantities import Grid, QuantityDict, combine_quantity, \
-                             might_depend_on
+from . import grids
+from .grids import Grid
+from . import quantities
+from .quantities import QuantityDict, combine_quantity, might_depend_on
 
 
 class Model:
@@ -236,7 +237,7 @@ class SimpleNNModel(Model):
             dtype=self.model_dtype,
         )
         for (i, label) in enumerate(self.inputs_labels):
-            inputs_tensor[:, i] = grid_quantities.expand_all_dims(
+            inputs_tensor[:, i] = quantities.expand_all_dims(
                 q[label],
                 q.grid,
             ).flatten()
@@ -426,7 +427,7 @@ def get_combined_multi_model(
     def qs_trafo(qs: dict[str, QuantityDict]):
         child_grids = dict((grid_name, qs[grid_name].grid)
                            for grid_name in grid_names)
-        supergrid = grid_quantities.Supergrid(
+        supergrid = grids.Supergrid(
             child_grids,
             combined_dimension_name,
             copy_all=False,
@@ -440,7 +441,7 @@ def get_combined_multi_model(
             )
         quantity = model.apply(q)
         for grid_name in grid_names:
-            qs[grid_name][model_name] = grid_quantities.restrict(
+            qs[grid_name][model_name] = quantities.restrict(
                 quantity,
                 supergrid.subgrids[grid_name],
             )
@@ -495,7 +496,7 @@ def add_coordinates(qs: dict[str, QuantityDict]):
         grid = q.grid
         for label, dimension_values in grid.dimensions.items():
             assert label not in q, label
-            q[label] = grid_quantities.unsqueeze_to(
+            q[label] = quantities.unsqueeze_to(
                 grid,
                 dimension_values,
                 [label],
@@ -508,14 +509,14 @@ coordinates_model = MultiModel(add_coordinates, 'coordinates')
 
 
 def get_qs(
-    grids: dict[str, Grid],
+    grids_: dict[str, Grid],
     models: list[MultiModel],
     quantities_requiring_grad: dict[str, list[str]],
 ):
     """ Get the non-extended qs that do not depend on trained parameters. """
 
     qs = dict((grid_name, QuantityDict(grid))
-              for grid_name, grid in grids.items())
+              for grid_name, grid in grids_.items())
     coordinates_model.apply(qs)
     set_requires_grad_quantities(
         quantities_requiring_grad,
@@ -552,7 +553,7 @@ def set_requires_grad_quantities(
                     assert might_depend_on(label, q[quantity_name], q.grid)
                 continue
 
-            q[quantity_name] = grid_quantities.expand_all_dims(
+            q[quantity_name] = quantities.expand_all_dims(
                 q[quantity_name],
                 q.grid,
             )
