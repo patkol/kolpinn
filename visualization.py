@@ -36,7 +36,8 @@ def get_avg_tensor(
     return tensor
 
 
-def format_unit_name(s): return '' if s is None else f' [{s}]'
+def format_unit_name(s):
+    return '' if s is None else f' [{s}]'
 
 
 def add_lineplot(
@@ -338,29 +339,31 @@ def save_complex_polar_plot(
 
 
 def save_training_history_plot(trainer: training.Trainer, path_prefix=None):
-    if len(trainer.training_loss_times) == 0:
+    if len(trainer.training_history.times) == 0:
         return
 
     if path_prefix is None:
-        path_prefix = f'plots/{trainer.saved_parameters_index:04d}/'
+        path_prefix = f'plots/{trainer.config.saved_parameters_index:04d}/'
 
     os.makedirs(path_prefix, exist_ok=True)
-    path = path_prefix + 'training_' + trainer.name + '.pdf'
+    path = path_prefix + 'training.pdf'
 
     fig, ax = plt.subplots()
     ax.set_prop_cycle(None)
     ax.plot(
-        trainer.training_loss_times,
-        trainer.training_loss_history,
+        trainer.training_history.times,
+        trainer.training_history.losses,
         linestyle='dashed',
         label=None,
         alpha=0.3,
     )
     ax.set_prop_cycle(None)
+    loss_names = list(trainer.config.used_losses_list)
+    loss_names += ['Total']
     ax.plot(
-        trainer.validation_loss_times,
-        trainer.validation_loss_history,
-        label=trainer.loss_names,
+        trainer.validation_history.times,
+        trainer.validation_history.losses,
+        label=loss_names,
     )
     ax.set_yscale('log')
     ax.legend()

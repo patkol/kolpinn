@@ -1,11 +1,10 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
+from typing import Dict, Sequence
 import copy
+import itertools
 import torch
-
-
-def identity(x): x
 
 
 def transform(x, input_range, output_range):
@@ -16,8 +15,8 @@ def transform(x, input_range, output_range):
     assert input_range[0] < input_range[1]
     assert output_range[0] < output_range[1]
 
-    scale_factor = ((output_range[1] - output_range[0]) /
-                    (input_range[1] - input_range[0]))
+    scale_factor = ((output_range[1] - output_range[0])
+                    / (input_range[1] - input_range[0]))
     return (x - input_range[0]) * scale_factor + output_range[0]
 
 
@@ -30,7 +29,7 @@ def complex_abs2(a: torch.Tensor) -> torch.Tensor:
 
 def complex_mse(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """nn.MSELoss that works for complex numbers"""
-    return complex_abs2(b-a).mean()
+    return complex_abs2(b - a).mean()
 
 
 def _complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
@@ -77,7 +76,7 @@ def grad(output: torch.Tensor, input_: torch.Tensor, **kwargs) -> torch.Tensor:
 
     assert not torch.is_complex(input_)
 
-    grad_outputs=torch.ones_like(output, dtype=torch.int8)
+    grad_outputs = torch.ones_like(output, dtype=torch.int8)
 
     if torch.is_complex(output):
         grad_tensor = _complex_grad(
@@ -181,7 +180,7 @@ def _interleave_equal_lengths(
 
     size[dim] *= 2
 
-    return torch.stack((tensor1, tensor2), dim=dim+1).view(*size)
+    return torch.stack((tensor1, tensor2), dim=dim + 1).view(*size)
 
 
 def _interleave_different_lengths(
@@ -219,3 +218,7 @@ def interleave(tensor1: torch.Tensor, tensor2: torch.Tensor, *, dim: int):
         return _interleave_equal_lengths(tensor1, tensor2, dim=dim)
 
     return _interleave_different_lengths(tensor1, tensor2, dim=dim)
+
+
+def get_chained_values(d: Dict):
+    return itertools.chain.from_iterable(d.values())

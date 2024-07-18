@@ -1,7 +1,7 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict, Any
 from collections.abc import Sequence
 import warnings
 import copy
@@ -98,10 +98,10 @@ def get_model(value, *, model_dtype=None, output_dtype=None, **kwargs):
     assert model_dtype is not None
 
     return ConstModel(
-               value,
-               model_dtype=model_dtype,
-               output_dtype=output_dtype,
-           )
+        value,
+        model_dtype=model_dtype,
+        output_dtype=output_dtype,
+    )
 
 
 class SimpleNetwork(nn.Module):
@@ -127,7 +127,7 @@ class SimpleNetwork(nn.Module):
             [nn.Linear(n_neurons_per_hidden_layer,
                        n_neurons_per_hidden_layer,
                        dtype=dtype)
-             for i in range(n_hidden_layers-1)],
+             for i in range(n_hidden_layers - 1)],
         )
         self.last_linear = nn.Linear(
             n_neurons_per_hidden_layer,
@@ -156,7 +156,7 @@ class SimpleNetwork(nn.Module):
 class SimpleNNModel(Model):
     def __init__(
         self,
-        inputs_labels: list,
+        inputs_labels: Sequence[str],
         activation_function,
         *,
         n_neurons_per_hidden_layer: int,
@@ -267,7 +267,7 @@ class TransformedModel(Model):
         self,
         child_model: Model,
         *,
-        input_transformations: Optional[dict[str, Callable]] = None,
+        input_transformations: Optional[Dict[str, Callable]] = None,
         output_transformation: Optional[Callable] = None,
         output_dtype=None,
     ):
@@ -275,7 +275,8 @@ class TransformedModel(Model):
         if input_transformations is None:
             input_transformations = {}
         if output_transformation is None:
-            def output_transformation(quantity, q): return quantity
+            def output_transformation(quantity, q):
+                return quantity
         if output_dtype is None:
             output_dtype = child_model.output_dtype
 
@@ -314,7 +315,7 @@ class MultiModel:
         models: Optional[list[Model]] = None,
         parameters_in: Optional[list[torch.Tensor]] = None,
         networks_in: Optional[list[torch.nn.Module]] = None,
-        kwargs: Optional[dict] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         qs_trafo should accept, modify and return qs.
@@ -342,7 +343,7 @@ class MultiModel:
         self.networks = networks
         self.kwargs = kwargs
 
-    def apply(self, qs: dict[str, QuantityDict]):
+    def apply(self, qs: Dict[str, QuantityDict]):
         return self.qs_trafo(qs, **self.kwargs)
 
     def set_requires_grad(self, requires_grad: bool):
@@ -381,7 +382,7 @@ def get_multi_model(
     if multi_model_name is None:
         multi_model_name = model_name
 
-    def qs_trafo(qs: dict[str, QuantityDict]):
+    def qs_trafo(qs: Dict[str, QuantityDict]):
         q = qs[grid_name]
         assert model_name not in q, f'model {model_name}, grid {grid_name}'
         q[model_name] = model.apply(q)
@@ -395,7 +396,7 @@ def get_multi_model(
 
 
 def get_multi_models(
-    models_dict: dict[str, Model],
+    models_dict: Dict[str, Model],
     grid_name: str,
     *,
     used_models_names: Optional[list[str]],
@@ -424,7 +425,7 @@ def get_combined_multi_model(
     if multi_model_name is None:
         multi_model_name = model_name
 
-    def qs_trafo(qs: dict[str, QuantityDict]):
+    def qs_trafo(qs: Dict[str, QuantityDict]):
         child_grids = dict((grid_name, qs[grid_name].grid)
                            for grid_name in grid_names)
         supergrid = grids.Supergrid(
@@ -491,7 +492,7 @@ def _find_networks(model):
     return networks
 
 
-def add_coordinates(qs: dict[str, QuantityDict]):
+def add_coordinates(qs: Dict[str, QuantityDict]):
     for q in qs.values():
         grid = q.grid
         for label, dimension_values in grid.dimensions.items():
@@ -509,9 +510,9 @@ coordinates_model = MultiModel(add_coordinates, 'coordinates')
 
 
 def get_qs(
-    grids_: dict[str, Grid],
+    grids_: Dict[str, Grid],
     models: list[MultiModel],
-    quantities_requiring_grad: dict[str, list[str]],
+    quantities_requiring_grad: Dict[str, list[str]],
 ):
     """ Get the non-extended qs that do not depend on trained parameters. """
 
@@ -532,8 +533,8 @@ def get_qs(
 
 
 def set_requires_grad_quantities(
-    quantities_dict: dict[str, list[str]],
-    qs: dict[str, QuantityDict],
+    quantities_dict: Dict[str, list[str]],
+    qs: Dict[str, QuantityDict],
     *,
     allow_missing_quantities: bool = False,
 ):
@@ -564,7 +565,7 @@ def set_requires_grad_quantities(
 
 def set_requires_grad_models(
     requires_grad: bool,
-    models: list[MultiModel],
+    models: Sequence[MultiModel],
 ):
     """
     Set `requires_grad` on the parameters of the given models.

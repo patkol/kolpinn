@@ -365,10 +365,6 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
     """
 
     assert len(quantity_list) == len(subgrid_list)
-    #if len(quantity_list) == 1:
-    #    assert compatible(quantity_list[0], subgrid_list[0])
-    #    assert compatible(quantity_list[0], grid)
-    #    return quantity_list[0]
 
     dtype = quantity_list[0].dtype
     # reduced_dimensions_labels: dims that got sliced in the subgrids

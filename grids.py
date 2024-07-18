@@ -1,6 +1,7 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
+from typing import Dict
 import copy
 import textwrap
 import math
@@ -10,7 +11,7 @@ import torch
 class Grid:
     def __init__(
         self,
-        dimensions: dict,
+        dimensions: Dict[str, torch.Tensor],
     ):
         """
         dimensions[label] is a 1D tensor.
