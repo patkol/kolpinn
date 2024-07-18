@@ -377,21 +377,36 @@ def get_multi_model(
     """
     Turn a model that does not depend on other grids (q -> q)
     into a MultiModel (qs -> qs).
+    If the model has kwargs they can be accessed through `multi_model.kwargs`
     """
 
     if multi_model_name is None:
         multi_model_name = model_name
 
-    def qs_trafo(qs: Dict[str, QuantityDict]):
+    def qs_trafo(qs: Dict[str, QuantityDict], **multi_model_kwargs):
+        # Provide q_full if necessary
+        if hasattr(model, 'kwargs') and 'q_full' in model.kwargs:
+            qs_full = multi_model_kwargs['qs_full']
+            model.kwargs['q_full'] = qs_full[grid_name]
+        else:
+            assert len(multi_model_kwargs) == 0, multi_model_kwargs
+
+        # Apply the model
         q = qs[grid_name]
-        assert model_name not in q, f'model {model_name}, grid {grid_name}'
         q[model_name] = model.apply(q)
         return qs
+
+    multi_model_kwargs = None
+    if hasattr(model, 'kwargs') and 'q_full' in model.kwargs:
+        multi_model_kwargs = {
+            'qs_full': None,
+        }
 
     return MultiModel(
         qs_trafo,
         multi_model_name,
         models=[model],
+        kwargs=multi_model_kwargs,
     )
 
 
@@ -554,11 +569,12 @@ def set_requires_grad_quantities(
                     assert might_depend_on(label, q[quantity_name], q.grid)
                 continue
 
-            q[quantity_name] = quantities.expand_all_dims(
+            quantity_with_grad = quantities.expand_all_dims(
                 q[quantity_name],
                 q.grid,
             )
-            q[quantity_name].requires_grad_(True)
+            quantity_with_grad.requires_grad_(True)
+            q.overwrite(quantity_name, quantity_with_grad)
 
     return qs
 
