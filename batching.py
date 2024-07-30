@@ -4,10 +4,10 @@
 from typing import Sequence, Dict
 import random
 
-from kolpinn.grids import Grid, Subgrid
+from kolpinn.grids import Grid
 
 
-def get_random_subgrid(
+def get_randomly_batched_indices_dict(
     grid: Grid,
     batch_sizes: Dict[str, int],
 ):
@@ -22,4 +22,4 @@ def get_random_subgrid(
         indices.sort()
         indices_dict[batch_dimension] = indices
 
-    return Subgrid(grid, indices_dict, copy_all=False)
+    return indices_dict

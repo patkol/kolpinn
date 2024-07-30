@@ -1,7 +1,7 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
-from typing import Dict, Sequence
+from typing import Dict
 import copy
 import itertools
 import torch

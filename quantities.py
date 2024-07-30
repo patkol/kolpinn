@@ -3,6 +3,7 @@
 
 import copy
 from collections.abc import Sequence
+from typing import Dict
 import torch
 import collections
 
@@ -275,17 +276,14 @@ def get_fd_second_derivative(
     return second_derivative
 
 
-def restrict(tensor: torch.Tensor, subgrid: Grid) -> torch.Tensor:
+def restrict(tensor: torch.Tensor, subgrid: Subgrid) -> torch.Tensor:
     """
     Restrict `tensor` to `subgrid`.
-    If `tensor` is already compatible with `subgrid`, no restriction
-    is performed.
+    If no restriction is performed (because all batched dims are singleton
+    in `tensor`) a reference to (not a copy of) `tensor` is returned
     """
 
-    if compatible(tensor, subgrid):
-        return tensor
-
-    assert isinstance(subgrid, Subgrid)
+    assert compatible(tensor, subgrid.parent_grid)
 
     restricted_tensor = tensor
     for dim, label in enumerate(subgrid.dimensions_labels):

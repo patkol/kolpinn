@@ -167,3 +167,57 @@ class Supergrid(Grid):
                 child_grid_name
 
         assert first_index == self.dimensions[dimension_name].size(dim=0)
+
+
+def get_as_subsubgrid(small_subgrid: Subgrid, large_subgrid: Subgrid, *, copy_all: bool):
+    """
+    Return the small_subgrid as a subgrid of large_subgrid.
+    Both subgrids should have the same parent_grid, and large_subgrids
+    must contain all gridpoints that small_subgrid does.
+    No sorting is required.
+    """
+    assert small_subgrid.parent_grid is large_subgrid.parent_grid
+
+    subsubgrid_indices_dict: Dict[str, list[int]] = {}
+
+    for label in small_subgrid.indices_dict:
+        parent_indices_small = list(small_subgrid.indices_dict[label])
+        subsubgrid_indices = parent_indices_small
+
+        if label in large_subgrid.indices_dict:
+            parent_indices_large = list(large_subgrid.indices_dict[label])
+            if parent_indices_small == parent_indices_large:
+                # The current dimension is the same on both subgrids
+                continue
+            subsubgrid_indices = [parent_indices_large.index(parent_index)
+                                  for parent_index in parent_indices_small]
+
+        subsubgrid_indices_dict[label] = subsubgrid_indices
+
+    subsubgrid = Subgrid(large_subgrid, subsubgrid_indices_dict, copy_all=copy_all)
+    return subsubgrid
+
+
+def get_as_subgrid(subsubgrid: Subgrid, *, copy_all: bool):
+    """
+    Return subsubgrid as a direct subgrid of its grandparent.
+    """
+    subgrid = subsubgrid.parent_grid
+    assert isinstance(subgrid, Subgrid)
+    parent_grid = subgrid.parent_grid
+    # Edge case: label in subgrid, but not in subsubgrid
+    new_subgrid_indices_dict = copy.copy(subgrid.indices_dict)
+
+    for label in subsubgrid.indices_dict:
+        subsubgrid_indices = subsubgrid.indices_dict[label]
+        # Edge case: label in subsubgrid, but not in subgrid
+        new_subgrid_indices = subsubgrid_indices
+        if label in subgrid.indices_dict:
+            subgrid_indices = subgrid.indices_dict[label]
+            new_subgrid_indices = [subgrid_indices[subsubgrid_index]
+                                   for subsubgrid_index in subsubgrid_indices]
+
+        new_subgrid_indices_dict[label] = new_subgrid_indices
+
+    new_subgrid = Subgrid(parent_grid, new_subgrid_indices_dict, copy_all=copy_all)
+    return new_subgrid
