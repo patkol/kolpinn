@@ -21,6 +21,7 @@ class Model:
     -> torch.Tensor of type `output_dtype`
     The model is parametrized by `parameters` of type `model_dtype`.
     """
+
     def __init__(
         self,
         parameters: Sequence[torch.Tensor],
@@ -34,7 +35,7 @@ class Model:
         self.check()
 
     def apply(self, q: QuantityDict) -> torch.Tensor:
-        raise Exception('`Model` is an ABC')
+        raise Exception("`Model` is an ABC")
 
     def set_requires_grad(self, requires_grad: bool):
         _set_requires_grad(requires_grad, self.parameters)
@@ -124,10 +125,12 @@ class SimpleNetwork(nn.Module):
             dtype=dtype,
         )
         self.hidden_linears = nn.ModuleList(
-            [nn.Linear(n_neurons_per_hidden_layer,
-                       n_neurons_per_hidden_layer,
-                       dtype=dtype)
-             for i in range(n_hidden_layers - 1)],
+            [
+                nn.Linear(
+                    n_neurons_per_hidden_layer, n_neurons_per_hidden_layer, dtype=dtype
+                )
+                for i in range(n_hidden_layers - 1)
+            ],
         )
         self.last_linear = nn.Linear(
             n_neurons_per_hidden_layer,
@@ -182,8 +185,7 @@ class SimpleNNModel(Model):
 
         self.inputs_labels = inputs_labels
         self.n_inputs = len(inputs_labels)
-        self.complex_output = output_dtype in (torch.complex64,
-                                               torch.complex128)
+        self.complex_output = output_dtype in (torch.complex64, torch.complex128)
         self.n_outputs = 2 if self.complex_output else 1
         self.network = SimpleNetwork(
             activation_function,
@@ -236,7 +238,7 @@ class SimpleNNModel(Model):
             (q.grid.n_points, self.n_inputs),
             dtype=self.model_dtype,
         )
-        for (i, label) in enumerate(self.inputs_labels):
+        for i, label in enumerate(self.inputs_labels):
             inputs_tensor[:, i] = quantities.expand_all_dims(
                 q[label],
                 q.grid,
@@ -275,8 +277,10 @@ class TransformedModel(Model):
         if input_transformations is None:
             input_transformations = {}
         if output_transformation is None:
+
             def output_transformation(quantity, q):
                 return quantity
+
         if output_dtype is None:
             output_dtype = child_model.output_dtype
 
@@ -385,9 +389,9 @@ def get_multi_model(
 
     def qs_trafo(qs: Dict[str, QuantityDict], **multi_model_kwargs):
         # Provide q_full if necessary
-        if hasattr(model, 'kwargs') and 'q_full' in model.kwargs:
-            qs_full = multi_model_kwargs['qs_full']
-            model.kwargs['q_full'] = qs_full[grid_name]
+        if hasattr(model, "kwargs") and "q_full" in model.kwargs:
+            qs_full = multi_model_kwargs["qs_full"]
+            model.kwargs["q_full"] = qs_full[grid_name]
         else:
             assert len(multi_model_kwargs) == 0, multi_model_kwargs
 
@@ -397,9 +401,9 @@ def get_multi_model(
         return qs
 
     multi_model_kwargs = None
-    if hasattr(model, 'kwargs') and 'q_full' in model.kwargs:
+    if hasattr(model, "kwargs") and "q_full" in model.kwargs:
         multi_model_kwargs = {
-            'qs_full': None,
+            "qs_full": None,
         }
 
     return MultiModel(
@@ -417,10 +421,11 @@ def get_multi_models(
     used_models_names: Optional[list[str]],
 ):
     if used_models_names is not None:
-        models_dict = dict((name, models_dict[name])
-                           for name in used_models_names)
-    multi_models = [get_multi_model(model, model_name, grid_name)
-                    for model_name, model in models_dict.items()]
+        models_dict = dict((name, models_dict[name]) for name in used_models_names)
+    multi_models = [
+        get_multi_model(model, model_name, grid_name)
+        for model_name, model in models_dict.items()
+    ]
 
     return multi_models
 
@@ -441,8 +446,7 @@ def get_combined_multi_model(
         multi_model_name = model_name
 
     def qs_trafo(qs: Dict[str, QuantityDict]):
-        child_grids = dict((grid_name, qs[grid_name].grid)
-                           for grid_name in grid_names)
+        child_grids = dict((grid_name, qs[grid_name].grid) for grid_name in grid_names)
         supergrid = grids.Supergrid(
             child_grids,
             combined_dimension_name,
@@ -490,7 +494,7 @@ def _set_requires_grad(
     parameters: Sequence[torch.Tensor],
 ):
     if requires_grad and len(parameters) == 0:
-        warnings.warn('Tried to set `requires_grad` on a parameter-less model')
+        warnings.warn("Tried to set `requires_grad` on a parameter-less model")
     for i in range(len(parameters)):
         parameters[i].requires_grad_(requires_grad)
 
@@ -499,9 +503,9 @@ def _set_requires_grad(
 
 def _find_networks(model):
     networks = []
-    if hasattr(model, 'network'):
+    if hasattr(model, "network"):
         networks.append(model.network)
-    if hasattr(model, 'child_model'):
+    if hasattr(model, "child_model"):
         networks += _find_networks(model.child_model)
 
     return networks
@@ -521,7 +525,7 @@ def add_coordinates(qs: Dict[str, QuantityDict]):
     return qs
 
 
-coordinates_model = MultiModel(add_coordinates, 'coordinates')
+coordinates_model = MultiModel(add_coordinates, "coordinates")
 
 
 def get_qs(
@@ -529,10 +533,9 @@ def get_qs(
     models: list[MultiModel],
     quantities_requiring_grad: Dict[str, list[str]],
 ):
-    """ Get the non-extended qs that do not depend on trained parameters. """
+    """Get the non-extended qs that do not depend on trained parameters."""
 
-    qs = dict((grid_name, QuantityDict(grid))
-              for grid_name, grid in grids_.items())
+    qs = dict((grid_name, QuantityDict(grid)) for grid_name, grid in grids_.items())
     coordinates_model.apply(qs)
     set_requires_grad_quantities(
         quantities_requiring_grad,

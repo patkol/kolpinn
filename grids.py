@@ -27,20 +27,26 @@ class Grid:
         self.dimensions_labels = list(dimensions.keys())
         self.dtype = list(self.dimensions.values())[0].dtype
         for label in self.dimensions_labels:
-            assert dimensions[label].dtype is self.dtype, \
-                   (self.dtype, label, dimensions[label].dtype)
-        self.shape = torch.Size([torch.numel(self.dimensions[label])
-                                 for label in self.dimensions_labels])
+            assert dimensions[label].dtype is self.dtype, (
+                self.dtype,
+                label,
+                dimensions[label].dtype,
+            )
+        self.shape = torch.Size(
+            [torch.numel(self.dimensions[label]) for label in self.dimensions_labels]
+        )
         self.n_dim = len(self.shape)
         self.n_points = math.prod(self.shape)
-        self.dim_size = dict((label, torch.numel(self.dimensions[label]))
-                             for label in self.dimensions_labels)
-        self.index = dict((label, index)
-                          for index, label
-                          in enumerate(self.dimensions_labels))
+        self.dim_size = dict(
+            (label, torch.numel(self.dimensions[label]))
+            for label in self.dimensions_labels
+        )
+        self.index = dict(
+            (label, index) for index, label in enumerate(self.dimensions_labels)
+        )
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.dimensions.keys()})'
+        return f"{self.__class__.__name__}({self.dimensions.keys()})"
 
     def __getitem__(self, dimension_label: str) -> torch.Tensor:
         return self.dimensions[dimension_label]
@@ -73,17 +79,22 @@ class Subgrid(Grid):
         """
 
         self.parent_grid = parent_grid
-        self.indices_dict = dict((label,
-                                  (indices
-                                   if torch.is_tensor(indices)
-                                   else torch.tensor(indices, dtype=torch.long)))
-                                 for (label, indices) in indices_dict.items())
+        self.indices_dict = dict(
+            (
+                label,
+                (
+                    indices
+                    if torch.is_tensor(indices)
+                    else torch.tensor(indices, dtype=torch.long)
+                ),
+            )
+            for (label, indices) in indices_dict.items()
+        )
 
         for label, indices in indices_dict.items():
-            assert (len(indices) == 0
-                    or (min(indices) >= 0
-                        and max(indices) < parent_grid.dim_size[label])), \
-                f'{label} {indices} {parent_grid.dim_size}'
+            assert len(indices) == 0 or (
+                min(indices) >= 0 and max(indices) < parent_grid.dim_size[label]
+            ), f"{label} {indices} {parent_grid.dim_size}"
 
         dimensions = {}
         for label in parent_grid.dimensions_labels:
@@ -98,13 +109,15 @@ class Subgrid(Grid):
         super().__init__(dimensions)
 
     def __repr__(self):
-        return ('Subgrid(\n'
-                + textwrap.indent(f'parent_grid={self.parent_grid},\n', '    ')
-                + textwrap.indent(f'indices_dict={self.indices_dict}),\n', '    ')
-                + ')')
+        return (
+            "Subgrid(\n"
+            + textwrap.indent(f"parent_grid={self.parent_grid},\n", "    ")
+            + textwrap.indent(f"indices_dict={self.indices_dict}),\n", "    ")
+            + ")"
+        )
 
     def descends_from(self, grid: Grid):
-        """ Whether any possibly higher level parent is grid """
+        """Whether any possibly higher level parent is grid"""
         if self.parent_grid is grid:
             return True
         if not isinstance(self.parent_grid, Subgrid):
@@ -145,14 +158,15 @@ class Supergrid(Grid):
         first_index = 0
         for child_grid_name, child_grid in child_grids.items():
             for label, dimension in child_grid.dimensions.items():
-                assert (label == dimension_name
-                        or torch.all(dimension == self.dimensions[label])), \
-                    f'Dimension {label} is not the same for all grids'
+                assert label == dimension_name or torch.all(
+                    dimension == self.dimensions[label]
+                ), f"Dimension {label} is not the same for all grids"
 
             dimension_size = child_grid[dimension_name].size(dim=0)
             next_first_index = first_index + dimension_size
             self.indices_dict[child_grid_name] = torch.arange(
-                first_index, first_index + dimension_size,
+                first_index,
+                first_index + dimension_size,
             )
             first_index = next_first_index
 
@@ -162,14 +176,17 @@ class Supergrid(Grid):
                 copy_all=False,
             )
 
-            assert torch.all(self.dimensions[dimension_name][self.indices_dict[child_grid_name]]
-                             == child_grid.dimensions[dimension_name]), \
-                child_grid_name
+            assert torch.all(
+                self.dimensions[dimension_name][self.indices_dict[child_grid_name]]
+                == child_grid.dimensions[dimension_name]
+            ), child_grid_name
 
         assert first_index == self.dimensions[dimension_name].size(dim=0)
 
 
-def get_as_subsubgrid(small_subgrid: Subgrid, large_subgrid: Subgrid, *, copy_all: bool):
+def get_as_subsubgrid(
+    small_subgrid: Subgrid, large_subgrid: Subgrid, *, copy_all: bool
+):
     """
     Return the small_subgrid as a subgrid of large_subgrid.
     Both subgrids should have the same parent_grid, and large_subgrids
@@ -189,8 +206,10 @@ def get_as_subsubgrid(small_subgrid: Subgrid, large_subgrid: Subgrid, *, copy_al
             if parent_indices_small == parent_indices_large:
                 # The current dimension is the same on both subgrids
                 continue
-            subsubgrid_indices = [parent_indices_large.index(parent_index)
-                                  for parent_index in parent_indices_small]
+            subsubgrid_indices = [
+                parent_indices_large.index(parent_index)
+                for parent_index in parent_indices_small
+            ]
 
         subsubgrid_indices_dict[label] = subsubgrid_indices
 
@@ -214,8 +233,10 @@ def get_as_subgrid(subsubgrid: Subgrid, *, copy_all: bool):
         new_subgrid_indices = subsubgrid_indices
         if label in subgrid.indices_dict:
             subgrid_indices = subgrid.indices_dict[label]
-            new_subgrid_indices = [subgrid_indices[subsubgrid_index]
-                                   for subsubgrid_index in subsubgrid_indices]
+            new_subgrid_indices = [
+                subgrid_indices[subsubgrid_index]
+                for subsubgrid_index in subsubgrid_indices
+            ]
 
         new_subgrid_indices_dict[label] = new_subgrid_indices
 

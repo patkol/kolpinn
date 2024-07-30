@@ -32,7 +32,7 @@ class TrainerConfig:
     max_n_steps: Optional[int] = None
     max_time: Optional[float] = None
     min_loss: Optional[float] = None
-    optimizer_reset_tol: float = float('inf')
+    optimizer_reset_tol: float = float("inf")
 
 
 @dataclass
@@ -43,7 +43,7 @@ class TrainerState:
     optimizer: torch.optim.Optimizer
     scheduler: Any = None
     n_steps: int = 0
-    best_validation_loss: float = float('inf')
+    best_validation_loss: float = float("inf")
     n_loaded_current_parameters: int = 0
     training_start_time: Optional[float] = None
     evaluation_times: Dict[str, float] = dataclasses.field(default_factory=dict)
@@ -77,9 +77,9 @@ class Trainer:
 
 
 def get_all_parameters(models: Sequence[MultiModel]) -> Sequence[torch.Tensor]:
-    all_parameters = list(itertools.chain.from_iterable(
-        [model.parameters for model in models]
-    ))
+    all_parameters = list(
+        itertools.chain.from_iterable([model.parameters for model in models])
+    )
     all_parameters = remove_duplicates(all_parameters)
 
     return all_parameters
@@ -109,20 +109,22 @@ def stop_training(trainer: Trainer) -> Tuple[bool, Optional[str]]:
     """
     Return (whether to stop, reason)
     """
-    if (trainer.config.max_n_steps is not None
-            and trainer.state.n_steps >= trainer.config.max_n_steps):
-        return True, f'{trainer.state.n_steps} training steps executed'
+    if (
+        trainer.config.max_n_steps is not None
+        and trainer.state.n_steps >= trainer.config.max_n_steps
+    ):
+        return True, f"{trainer.state.n_steps} training steps executed"
 
     assert trainer.state.training_start_time is not None
     time_passed = time.perf_counter() - trainer.state.training_start_time
     max_time = trainer.config.max_time
     if max_time is not None and time_passed >= max_time:
-        return True, f'{time_passed:.1f}s >= {max_time:.1f} passed'
+        return True, f"{time_passed:.1f}s >= {max_time:.1f} passed"
 
     validation_loss = trainer.validation_history.losses[-1, -1]
     min_loss = trainer.config.min_loss
     if min_loss is not None and validation_loss <= min_loss:
-        return True, f'Validation loss {validation_loss} <= {min_loss} reached'
+        return True, f"Validation loss {validation_loss} <= {min_loss} reached"
 
     return False, None
 
@@ -133,14 +135,18 @@ def reset_to_best(trainer: Trainer) -> Tuple[bool, Optional[str]]:
     """
     current_training_loss = trainer.training_history.losses[-1, -1]
     if not np.isfinite(current_training_loss):
-        return True, f'Loss became nonfinite ({current_training_loss})'
+        return True, f"Loss became nonfinite ({current_training_loss})"
 
     assert trainer.state.best_validation_loss is not None
-    max_training_loss = (trainer.config.optimizer_reset_tol
-                         * trainer.state.best_validation_loss)
+    max_training_loss = (
+        trainer.config.optimizer_reset_tol * trainer.state.best_validation_loss
+    )
     if current_training_loss > max_training_loss:
         factor = round(current_training_loss / trainer.state.best_validation_loss)
-        return True, f'Loss became {factor}x > {trainer.config.optimizer_reset_tol}x larger than best validation loss'
+        return (
+            True,
+            f"Loss became {factor}x > {trainer.config.optimizer_reset_tol}x larger than best validation loss",
+        )
 
     return False, None
 
@@ -153,14 +159,14 @@ def save(trainer: Trainer):
     for model in trainer.state.trained_models:
         model_parameters_dict[model.name] = model.parameters
     save_dict = {
-        'model_parameters_dict': model_parameters_dict,
+        "model_parameters_dict": model_parameters_dict,
     }
     if trainer.config.save_optimizer:
-        save_dict['optimizer_state_dict'] = trainer.state.optimizer.state_dict()
+        save_dict["optimizer_state_dict"] = trainer.state.optimizer.state_dict()
     if trainer.state.scheduler is not None:
-        save_dict['scheduler_state_dict'] = trainer.state.scheduler.state_dict()
+        save_dict["scheduler_state_dict"] = trainer.state.scheduler.state_dict()
 
-    torch.save(save_dict, path + 'all.pth')
+    torch.save(save_dict, path + "all.pth")
     trainer.state.n_loaded_current_parameters = 0
 
 
@@ -175,15 +181,13 @@ def load(
         return
 
     path = get_parameters_path(parameters_index)
-    save_dict = torch.load(path + 'all.pth')
+    save_dict = torch.load(path + "all.pth")
     for model in trainer.state.trained_models:
-        model.replace_parameters(
-            save_dict['model_parameters_dict'][model.name]
-        )
+        model.replace_parameters(save_dict["model_parameters_dict"][model.name])
     if load_optimizer:
-        trainer.state.optimizer.load_state_dict(save_dict['optimizer_state_dict'])
+        trainer.state.optimizer.load_state_dict(save_dict["optimizer_state_dict"])
     if load_scheduler:
-        trainer.state.scheduler.load_state_dict(save_dict['scheduler_state_dict'])
+        trainer.state.scheduler.load_state_dict(save_dict["scheduler_state_dict"])
 
     trainer.state.n_loaded_current_parameters += 1
 
@@ -224,8 +228,8 @@ def get_extended_qs(
         # print(f"Evaluating '{model.name}'")  # DEBUG
 
         # Provide qs_full if necessary
-        if 'qs_full' in model.kwargs:
-            model.kwargs['qs_full'] = state.const_qs
+        if "qs_full" in model.kwargs:
+            model.kwargs["qs_full"] = state.const_qs
 
         eval_start_time = time.perf_counter_ns()  # PROFILING
 
@@ -268,8 +272,9 @@ def get_losses(trainer: Trainer, *, for_training: bool = False):
     """
     losses['Total'] is the total loss.
     """
-    for model in itertools.chain.from_iterable([trainer.state.trained_models,
-                                                trainer.state.dependent_models]):
+    for model in itertools.chain.from_iterable(
+        [trainer.state.trained_models, trainer.state.dependent_models]
+    ):
         model.set_train() if for_training else model.set_eval()
 
     set_requires_grad_models(for_training, trainer.state.trained_models)
@@ -278,9 +283,11 @@ def get_losses(trainer: Trainer, *, for_training: bool = False):
         batched_grids = trainer.config.get_batched_grids()
         const_qs = get_batched_qs(const_qs, batched_grids)
 
-    qs = get_extended_qs(trainer.state, const_qs)  # TODO: Evaluate batched & combine for validation
+    qs = get_extended_qs(
+        trainer.state, const_qs
+    )  # TODO: Evaluate batched & combine for validation
     losses = _extract_losses(qs, trainer.config)
-    losses['Total'] = trainer.config.loss_aggregate_function(list(losses.values()))
+    losses["Total"] = trainer.config.loss_aggregate_function(list(losses.values()))
 
     history = trainer.training_history if for_training else trainer.validation_history
     assert trainer.state.training_start_time is not None
@@ -291,23 +298,31 @@ def get_losses(trainer: Trainer, *, for_training: bool = False):
 
 
 def print_progress(trainer: Trainer):
-    max_n_steps_string = ('  -  '
-                          if trainer.config.max_n_steps is None
-                          else f'{trainer.config.max_n_steps:>5d}')
-    print(f'[{trainer.state.n_steps:>5d}/{max_n_steps_string}]')
+    max_n_steps_string = (
+        "  -  "
+        if trainer.config.max_n_steps is None
+        else f"{trainer.config.max_n_steps:>5d}"
+    )
+    print(f"[{trainer.state.n_steps:>5d}/{max_n_steps_string}]")
 
     n_losses = trainer.training_history.losses.shape[1]
     validation_losses = trainer.validation_history.losses[-1, :]
     validation_loss_time = trainer.validation_history.times[-1]
-    training_losses = (trainer.training_history.losses[-1, :]
-                       if len(trainer.training_history.losses) > 0
-                       else float('nan') * np.ones(n_losses))
-    training_loss_time = (trainer.training_history.times[-1]
-                          if len(trainer.training_history.times) > 0
-                          else float('nan'))
+    training_losses = (
+        trainer.training_history.losses[-1, :]
+        if len(trainer.training_history.losses) > 0
+        else float("nan") * np.ones(n_losses)
+    )
+    training_loss_time = (
+        trainer.training_history.times[-1]
+        if len(trainer.training_history.times) > 0
+        else float("nan")
+    )
 
     print(f"Elapsed time: {validation_loss_time:>4f} ({training_loss_time:>4f}) s")
-    loss_quantities_chain = mathematics.get_chained_values(trainer.config.loss_quantities)
+    loss_quantities_chain = mathematics.get_chained_values(
+        trainer.config.loss_quantities
+    )
     for i, loss_name in enumerate(loss_quantities_chain):
         print(f"{loss_name}: {validation_losses[i]:>7f} ({training_losses[i]:>7f})")
     print(f"Total loss: {validation_losses[-1]:>7f} ({training_losses[-1]:>7f})")
@@ -321,7 +336,7 @@ def step(trainer: Trainer):
         """
 
         trainer.state.optimizer.zero_grad()
-        loss = get_losses(trainer, for_training=True)['Total']
+        loss = get_losses(trainer, for_training=True)["Total"]
         all_parameters = get_all_parameters(trainer.state.trained_models)
         loss.backward(inputs=all_parameters)
 
@@ -355,7 +370,10 @@ def train(
 
             # Save
             current_validation_loss = trainer.validation_history.losses[-1, -1]
-            if save_if_best and current_validation_loss < trainer.state.best_validation_loss:
+            if (
+                save_if_best
+                and current_validation_loss < trainer.state.best_validation_loss
+            ):
                 # Saving at step 0 as well to reserve the `saved_parameters_index`
                 save(trainer)
                 trainer.state.best_validation_loss = current_validation_loss
@@ -367,7 +385,7 @@ def train(
         # Stop
         stop, stopping_reason = stop_training(trainer)
         if stop:
-            print(f'{stopping_reason}, stopping')
+            print(f"{stopping_reason}, stopping")
             if not validated_current_state:
                 get_losses(trainer)
                 print_progress(trainer)
@@ -382,7 +400,7 @@ def train(
         if reset:
             print(
                 resetting_reason,
-                f'in step {trainer.state.n_steps}, resetting the optimizer...',
+                f"in step {trainer.state.n_steps}, resetting the optimizer...",
             )
             load(
                 trainer.config.saved_parameters_index,
@@ -390,10 +408,14 @@ def train(
                 load_optimizer=False,
                 load_scheduler=False,
             )
-            trainer.state.optimizer.load_state_dict(copy.deepcopy(initial_optimizer_state_dict))
+            trainer.state.optimizer.load_state_dict(
+                copy.deepcopy(initial_optimizer_state_dict)
+            )
             if trainer.state.n_loaded_current_parameters > 0:
                 for param_group in trainer.state.optimizer.param_groups:
                     reduction_factor = trainer.state.n_loaded_current_parameters + 1
-                    lr = param_group['lr'] / reduction_factor
-                    param_group['lr'] = lr
-                    print(f'Learning rate reduced by a factor of {reduction_factor} to {lr} until the next reset')
+                    lr = param_group["lr"] / reduction_factor
+                    param_group["lr"] = lr
+                    print(
+                        f"Learning rate reduced by a factor of {reduction_factor} to {lr} until the next reset"
+                    )

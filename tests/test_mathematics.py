@@ -18,15 +18,17 @@ def test_transform():
 
     assert math.isclose(y, 2)
 
+
 def test_complex_mse_of_equal_tensors_vanishes():
-    a = utilities.get_random_tensor(size=(2,3,4), seed=0, dtype=torch.complex64)
+    a = utilities.get_random_tensor(size=(2, 3, 4), seed=0, dtype=torch.complex64)
 
     mse = mathematics.complex_mse(a, a)
 
     assert math.isclose(mse, 0)
 
+
 def test_complex_mse_of_ones_is_one():
-    size = (2,3,4)
+    size = (2, 3, 4)
     dtype = torch.complex128
     a = torch.ones(size, dtype=dtype)
     b = torch.zeros(size, dtype=dtype)
@@ -35,8 +37,9 @@ def test_complex_mse_of_ones_is_one():
 
     assert math.isclose(mse, 1)
 
+
 def test_grad_real_tensor_real_multiplier():
-    size = (2,3,4)
+    size = (2, 3, 4)
     dtype = torch.float64
     multiplier = utilities.get_random_tensor(
         size=size,
@@ -44,32 +47,41 @@ def test_grad_real_tensor_real_multiplier():
         dtype=dtype,
     )
     a, b = utilities.get_dependent_tensors(
-        multiplier=multiplier, size=size, seed=1, dtype=dtype,
+        multiplier=multiplier,
+        size=size,
+        seed=1,
+        dtype=dtype,
     )
 
     grad = mathematics.grad(b, a)
 
     assert torch.allclose(grad, multiplier)
 
+
 def test_grad_real_tensor_complex_multiplier():
-    size = (2,3,4)
+    size = (2, 3, 4)
     multiplier = utilities.get_random_tensor(
         size=size,
         seed=0,
         dtype=torch.complex64,
     )
     a, b = utilities.get_dependent_tensors(
-        multiplier=multiplier, size=size, seed=1, dtype=torch.float32,
+        multiplier=multiplier,
+        size=size,
+        seed=1,
+        dtype=torch.float32,
     )
 
     grad = mathematics.grad(b, a)
 
     assert torch.allclose(grad, multiplier)
 
+
 def test_generalized_cartesian_prod_no_tensors():
     prod = mathematics.generalized_cartesian_prod()
 
     assert prod.size() == (0, 0)
+
 
 def test_generalized_cartesian_prod_one_tensor():
     tensor = utilities.get_random_tensor(
@@ -80,12 +92,13 @@ def test_generalized_cartesian_prod_one_tensor():
 
     prod = mathematics.generalized_cartesian_prod(tensor)
 
-    assert prod.size() == (5,1)
-    assert torch.equal(prod[:,0], tensor)
+    assert prod.size() == (5, 1)
+    assert torch.equal(prod[:, 0], tensor)
+
 
 def test_exchange_dims_outer_dims():
     tensor = utilities.get_random_tensor(
-        size=(2,3,4),
+        size=(2, 3, 4),
         seed=0,
         dtype=torch.complex64,
     )
@@ -94,13 +107,14 @@ def test_exchange_dims_outer_dims():
     doubly_exchanged_tensor = mathematics.exchange_dims(exchanged_tensor, 0, 2)
     triply_exchanged_tensor = mathematics.exchange_dims(doubly_exchanged_tensor, 2, 0)
 
-    assert exchanged_tensor.size() == (4,3,2)
+    assert exchanged_tensor.size() == (4, 3, 2)
     assert torch.equal(doubly_exchanged_tensor, tensor)
     assert torch.equal(triply_exchanged_tensor, exchanged_tensor)
 
+
 def test_exchange_dims_with_themselves():
     tensor = utilities.get_random_tensor(
-        size=(2,3,4),
+        size=(2, 3, 4),
         seed=0,
         dtype=torch.complex128,
     )
@@ -109,20 +123,23 @@ def test_exchange_dims_with_themselves():
 
     assert torch.equal(exchanged_tensor, tensor)
 
+
 def test_remove_duplicates():
-    list_ = [1, 'fish', 1]
+    list_ = [1, "fish", 1]
 
     cleaned_list = mathematics.remove_duplicates(list_)
 
     assert len(cleaned_list) == 2
-    assert set(cleaned_list) == set([1, 'fish'])
+    assert set(cleaned_list) == set([1, "fish"])
+
 
 def test_remove_duplicates_without_duplicates():
-    list_ = [1, 'fish', 3]
+    list_ = [1, "fish", 3]
 
     cleaned_list = mathematics.remove_duplicates(list_)
 
     assert cleaned_list == list_
+
 
 def test_remove_duplicates_of_empty_list():
     list_: list = []
@@ -131,35 +148,38 @@ def test_remove_duplicates_of_empty_list():
 
     assert cleaned_list == list_
 
+
 def test_remove_duplicates_of_equal_objects():
     """
     remove_duplicates only removes duplicates in the sense of 'is'
     """
 
-    list_ = [[1,2], 'fish', [1,2]]
+    list_ = [[1, 2], "fish", [1, 2]]
 
     cleaned_list = mathematics.remove_duplicates(list_)
 
     assert cleaned_list == list_
 
+
 def test_expand():
     tensor = utilities.get_random_tensor(
-        size=(2,3,1),
+        size=(2, 3, 1),
         seed=0,
         dtype=torch.complex64,
     )
-    shape_target = (1,2,3,7,0,1,7)
-    indices = [1,2,5]
+    shape_target = (1, 2, 3, 7, 0, 1, 7)
+    indices = [1, 2, 5]
 
     expanded_tensor = mathematics.expand(tensor, shape_target, indices)
     squeezed_expanded_tensor = torch.squeeze(expanded_tensor)
     squeezed_tensor = torch.squeeze(tensor)
 
-    assert expanded_tensor.size() == (1,2,3,1,1,1,1)
+    assert expanded_tensor.size() == (1, 2, 3, 1, 1, 1, 1)
     assert torch.equal(squeezed_expanded_tensor, squeezed_tensor)
 
+
 def test_expand_to_same():
-    size = (2,3,1,5)
+    size = (2, 3, 1, 5)
     tensor = utilities.get_random_tensor(
         size=size,
         seed=1,
@@ -172,13 +192,14 @@ def test_expand_to_same():
 
     assert torch.equal(expanded_tensor, tensor)
 
+
 def test_expand_empty():
     tensor = utilities.get_random_tensor(
         size=(),
         seed=0,
         dtype=torch.complex64,
     )
-    shape_target = (1,2,3,7,1,7)
+    shape_target = (1, 2, 3, 7, 1, 7)
     indices: list = []
 
     expanded_tensor = mathematics.expand(tensor, shape_target, indices)
@@ -186,48 +207,51 @@ def test_expand_empty():
     assert expanded_tensor.size() == (1,) * len(shape_target)
     assert expanded_tensor.item() == tensor.item()
 
+
 def test_interleave_equal_lengths():
     a = utilities.get_random_tensor(
-        size=(2,3,4),
+        size=(2, 3, 4),
         seed=0,
         dtype=torch.complex64,
     )
     b = utilities.get_random_tensor(
-        size=(2,3,4),
+        size=(2, 3, 4),
         seed=1,
         dtype=torch.float64,
     )
 
     interleaved = mathematics.interleave(a, b, dim=1)
 
-    assert torch.equal(interleaved[:,::2,:], a)
-    assert torch.equal(interleaved[:,1::2,:], b)
+    assert torch.equal(interleaved[:, ::2, :], a)
+    assert torch.equal(interleaved[:, 1::2, :], b)
+
 
 def test_interleave_different_lengths():
     a = utilities.get_random_tensor(
-        size=(3,3,4),
+        size=(3, 3, 4),
         seed=0,
         dtype=torch.complex64,
     )
     b = utilities.get_random_tensor(
-        size=(2,3,4),
+        size=(2, 3, 4),
         seed=1,
         dtype=torch.complex64,
     )
 
     interleaved = mathematics.interleave(a, b, dim=0)
 
-    assert torch.equal(interleaved[::2,:,:], a)
-    assert torch.equal(interleaved[1::2,:,:], b)
+    assert torch.equal(interleaved[::2, :, :], a)
+    assert torch.equal(interleaved[1::2, :, :], b)
+
 
 def test_interleave_with_zero_length():
     a = utilities.get_random_tensor(
-        size=(2,3,1),
+        size=(2, 3, 1),
         seed=0,
         dtype=torch.complex64,
     )
     b = utilities.get_random_tensor(
-        size=(2,3,0),
+        size=(2, 3, 0),
         seed=1,
         dtype=torch.complex64,
     )
@@ -236,14 +260,15 @@ def test_interleave_with_zero_length():
 
     assert torch.equal(interleaved, a)
 
+
 def test_interleave_nothing():
     a = utilities.get_random_tensor(
-        size=(0,3,4),
+        size=(0, 3, 4),
         seed=0,
         dtype=torch.complex64,
     )
     b = utilities.get_random_tensor(
-        size=(0,3,4),
+        size=(0, 3, 4),
         seed=1,
         dtype=torch.complex64,
     )

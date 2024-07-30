@@ -15,8 +15,9 @@ def transform(x, input_range, output_range):
     assert input_range[0] < input_range[1]
     assert output_range[0] < output_range[1]
 
-    scale_factor = ((output_range[1] - output_range[0])
-                    / (input_range[1] - input_range[0]))
+    scale_factor = (output_range[1] - output_range[0]) / (
+        input_range[1] - input_range[0]
+    )
     return (x - input_range[0]) * scale_factor + output_range[0]
 
 
@@ -24,7 +25,7 @@ def complex_abs2(a: torch.Tensor) -> torch.Tensor:
     if a.dtype in (torch.float16, torch.float32, torch.float64):
         return a**2
 
-    return torch.real(a)**2 + torch.imag(a)**2
+    return torch.real(a) ** 2 + torch.imag(a) ** 2
 
 
 def complex_mse(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
@@ -46,19 +47,19 @@ def _complex_grad(outputs: torch.Tensor, inputs: torch.Tensor, *args, **kwargs):
     # We need to `retain_graph` for the real gradient such that the graph
     # will be avaliable for the complex one.
     retain_graph = None
-    if 'retain_graph' in kwargs:
-        retain_graph = kwargs['retain_graph']
+    if "retain_graph" in kwargs:
+        retain_graph = kwargs["retain_graph"]
 
-    kwargs['retain_graph'] = True
-    grad_real, = torch.autograd.grad(
+    kwargs["retain_graph"] = True
+    (grad_real,) = torch.autograd.grad(
         torch.real(outputs),
         inputs,
         *args,
         **kwargs,
     )
 
-    kwargs['retain_graph'] = retain_graph
-    grad_imag, = torch.autograd.grad(
+    kwargs["retain_graph"] = retain_graph
+    (grad_imag,) = torch.autograd.grad(
         torch.imag(outputs),
         inputs,
         *args,
@@ -97,7 +98,7 @@ def grad(output: torch.Tensor, input_: torch.Tensor, **kwargs) -> torch.Tensor:
 
 
 def generalized_cartesian_prod(*tensors: torch.Tensor):
-    """ Generalized to the cases where only one or no tensor is provided. """
+    """Generalized to the cases where only one or no tensor is provided."""
 
     if len(tensors) == 0:
         return torch.zeros((0, 0))
@@ -112,8 +113,7 @@ def generalized_cartesian_prod(*tensors: torch.Tensor):
 
 def exchange_dims(tensor: torch.Tensor, dim_1, dim_2):
     permutation = list(range(len(tensor.size())))
-    permutation[dim_1], permutation[dim_2] = \
-        permutation[dim_2], permutation[dim_1]
+    permutation[dim_1], permutation[dim_2] = permutation[dim_2], permutation[dim_1]
     permuted_tensor = tensor.permute(permutation)
 
     return permuted_tensor
@@ -163,8 +163,7 @@ def expand(tensor_in: torch.Tensor, shape_target, indices):
 
             shape_out.append(dim_size_out)
 
-        assert in_dim == len(indices), \
-               f"indices={indices} might not be ordered"
+        assert in_dim == len(indices), f"indices={indices} might not be ordered"
 
     return tensor_in.reshape(shape_out)
 

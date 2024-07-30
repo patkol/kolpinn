@@ -28,15 +28,15 @@ def test_QuantityDict():
     assert q["3"] is tensor3
 
     # Cannot overwrite through indexing
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         q["2"] = tensor1
 
     # All elements must be tensors compatible with `grid`
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         q["5"] = [0.3, 7.1]
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         q["6"] = tensor4
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.QuantityDict(grid, {"4": tensor4})
 
 
@@ -76,7 +76,7 @@ def test_is_singleton_dimension():
     assert not quantities.is_singleton_dimension("c", tensor1, grid)
 
     # Must be compatible
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.is_singleton_dimension("b", tensor2, grid)
 
 
@@ -163,7 +163,7 @@ def test_squeeze_to():
     assert torch.equal(tensor3_not_squeezed, tensor3)
 
     # The squeezed tensor must possibly depend on all dimensions
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.squeeze_to(["b", "c"], tensor1, grid)
 
 
@@ -174,9 +174,9 @@ def test_squeeze_too_much():
     tensor2 = utilities.get_random_tensor(size=(3, 1, 2), seed=2)
 
     # Cannot squeeze in a dimension the tensor depends on
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.squeeze_to(["b", "c"], tensor2, grid)
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.squeeze_to([], tensor1, grid)
 
 
@@ -200,13 +200,13 @@ def test_unsqueeze_to():
     assert torch.equal(tensor4_unsqueezed[:, 0, :], tensor4)
 
     # Input must depend on all dimensions
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.unsqueeze_to(grid, tensor1, ("a", "b", "c"))
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.unsqueeze_to(grid, tensor3, ("c"))
 
     # Input needs to be ordered
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.unsqueeze_to(grid, tensor5, ("c", "b", "a"))
 
 
@@ -248,7 +248,7 @@ def test_combine_quantity():
     assert torch.equal(combined_quantity, quantity)
 
     # The whole grid must be covered
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.combine_quantity(
             sub_quantities[:-1],
             subgrids[:-1],
@@ -256,7 +256,7 @@ def test_combine_quantity():
         )
 
     # No double coverage
-    with pytest.raises(AssertionError) as e_info:
+    with pytest.raises(AssertionError):
         quantities.combine_quantity(
             sub_quantities + [sub_quantities[1]],
             subgrids + [subgrids[1]],

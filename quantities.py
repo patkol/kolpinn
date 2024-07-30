@@ -3,7 +3,6 @@
 
 import copy
 from collections.abc import Sequence
-from typing import Dict
 import torch
 import collections
 
@@ -60,8 +59,9 @@ def is_singleton_dimension(
 def might_depend_on(label: str, tensor: torch.Tensor, grid: Grid) -> bool:
     """Whether tensor might depend on grid[label]"""
     assert compatible(tensor, grid)
-    return ((not is_singleton_dimension(label, tensor, grid))
-            or grid.dim_size[label] == 1)
+    return (not is_singleton_dimension(label, tensor, grid)) or grid.dim_size[
+        label
+    ] == 1
 
 
 def sum_dimension(
@@ -239,8 +239,7 @@ def get_fd_second_derivative(
 
     dim_index = grid.index[dimension]
 
-    dx = ((grid[dimension][-1] - grid[dimension][0])
-          / (grid.dim_size[dimension] - 1))
+    dx = (grid[dimension][-1] - grid[dimension][0]) / (grid.dim_size[dimension] - 1)
     full_slices = [slice(None)] * grid.n_dim
     left_slices = copy.copy(full_slices)
     left_slices[dim_index] = slice(0, -2)
@@ -248,9 +247,9 @@ def get_fd_second_derivative(
     mid_slices[dim_index] = slice(1, -1)
     right_slices = copy.copy(full_slices)
     right_slices[dim_index] = slice(2, None)
-    second_derivative = (tensor[left_slices]
-                         + tensor[right_slices]
-                         - 2 * tensor[mid_slices]) / dx**2
+    second_derivative = (
+        tensor[left_slices] + tensor[right_slices] - 2 * tensor[mid_slices]
+    ) / dx**2
 
     # Extrapolate to the very left and right
     # Equivalent to the left/right-sided stencils at (4) in
@@ -264,10 +263,12 @@ def get_fd_second_derivative(
     right_slices[dim_index] = slice(-1, None)
     second_right_slices = copy.copy(full_slices)
     second_right_slices[dim_index] = slice(-2, -1)
-    left_derivative = (2 * second_derivative[left_slices]
-                       - second_derivative[second_left_slices])
-    right_derivative = (2 * second_derivative[right_slices]
-                        - second_derivative[second_right_slices])
+    left_derivative = (
+        2 * second_derivative[left_slices] - second_derivative[second_left_slices]
+    )
+    right_derivative = (
+        2 * second_derivative[right_slices] - second_derivative[second_right_slices]
+    )
     second_derivative = torch.cat(
         (left_derivative, second_derivative, right_derivative),
         dim_index,
@@ -287,13 +288,12 @@ def restrict(tensor: torch.Tensor, subgrid: Subgrid) -> torch.Tensor:
 
     restricted_tensor = tensor
     for dim, label in enumerate(subgrid.dimensions_labels):
-        if (label not in subgrid.indices_dict.keys()
-            or is_singleton_dimension(
-                   label,
-                   tensor,
-                   subgrid,
-                   check_compatible=False,
-               )):
+        if label not in subgrid.indices_dict.keys() or is_singleton_dimension(
+            label,
+            tensor,
+            subgrid,
+            check_compatible=False,
+        ):
             continue
         indices = subgrid.indices_dict[label]
         restricted_tensor = restricted_tensor.index_select(dim, indices)
@@ -322,12 +322,14 @@ def squeeze_to(
     dimensions_to_squeeze = list(range(len(grid.dimensions)))
     index = -1
     for label in dimensions_labels:
-        assert might_depend_on(label, tensor, grid), \
-               "Quantity not dependent on " + label
+        assert might_depend_on(label, tensor, grid), (
+            "Quantity not dependent on " + label
+        )
         new_index = grid.index[label]
         # IDEA: arbitrary order
-        assert new_index > index, \
-               f"Wrong order: {dimensions_labels} vs. {grid.dimensions_labels}"
+        assert (
+            new_index > index
+        ), f"Wrong order: {dimensions_labels} vs. {grid.dimensions_labels}"
         index = new_index
         dimensions_to_squeeze.remove(index)
 
@@ -389,8 +391,9 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
         assert compatible(quantity, subgrid)
         assert subgrid.parent_grid is grid
         assert quantity.dtype is dtype
-        assert set(subgrid.indices_dict.keys()) == reduced_dimensions_labels, \
-               'Different dimensions are sliced in the subgrids'
+        assert (
+            set(subgrid.indices_dict.keys()) == reduced_dimensions_labels
+        ), "Different dimensions are sliced in the subgrids"
 
         sub_tensor = torch.clone(quantity)
         sub_covered = torch.ones_like(sub_tensor, dtype=torch.bool)
@@ -412,8 +415,7 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
             sub_tensor = new_tensor
             sub_covered = new_covered
 
-        assert not torch.any(torch.logical_and(covered, sub_covered)), \
-               'Double coverage'
+        assert not torch.any(torch.logical_and(covered, sub_covered)), "Double coverage"
 
         tensor += sub_tensor
         covered += sub_covered
@@ -442,6 +444,5 @@ def combine_quantities(qs: Sequence[QuantityDict], grid: Grid):
 def restrict_quantities(q: QuantityDict, subgrid: Subgrid) -> QuantityDict:
     return QuantityDict(
         subgrid,
-        ((label, restrict(quantity, subgrid))
-         for (label, quantity) in q.items()),
+        ((label, restrict(quantity, subgrid)) for (label, quantity) in q.items()),
     )
