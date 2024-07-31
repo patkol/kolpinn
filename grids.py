@@ -186,7 +186,7 @@ class Supergrid(Grid):
 
 def get_as_subsubgrid(
     small_subgrid: Subgrid, large_subgrid: Subgrid, *, copy_all: bool
-):
+) -> Subgrid:
     """
     Return the small_subgrid as a subgrid of large_subgrid.
     Both subgrids should have the same parent_grid, and large_subgrids
@@ -217,7 +217,7 @@ def get_as_subsubgrid(
     return subsubgrid
 
 
-def get_as_subgrid(subsubgrid: Subgrid, *, copy_all: bool):
+def get_as_subgrid(subsubgrid: Subgrid, *, copy_all: bool) -> Subgrid:
     """
     Return subsubgrid as a direct subgrid of its grandparent.
     """

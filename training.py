@@ -15,15 +15,13 @@ import torch
 from . import mathematics
 from .mathematics import remove_duplicates
 from .storage import get_parameters_path
-from .grids import Subgrid
-from . import quantities
 from .quantities import QuantityDict
 from .model import MultiModel, set_requires_grad_models
 
 
 @dataclass
 class TrainerConfig:
-    get_batched_grids: Callable[[], Dict[str, Subgrid]]
+    get_batched_qs: Callable[[Dict[str, QuantityDict]], Dict[str, QuantityDict]]
     # qs[grid_name][loss_quantities[grid_name]] will be used as losses
     loss_quantities: Dict[str, Sequence[str]]
     loss_aggregate_function: Callable[[Sequence], Any]
@@ -192,20 +190,6 @@ def load(
     trainer.state.n_loaded_current_parameters += 1
 
 
-def get_batched_qs(
-    qs: Dict[str, QuantityDict],
-    batched_grids: Dict[str, Subgrid],
-) -> Dict[str, QuantityDict]:
-    batched_qs: Dict[str, QuantityDict] = {}
-    for grid_name, grid in batched_grids.items():
-        batched_qs[grid_name] = quantities.restrict_quantities(
-            qs[grid_name],
-            grid,
-        )
-
-    return batched_qs
-
-
 def get_extended_qs(
     state: TrainerState,
     const_qs: Optional[Dict[str, QuantityDict]] = None,
@@ -225,7 +209,7 @@ def get_extended_qs(
         [state.trained_models, state.dependent_models]
     )
     for model in models:
-        # print(f"Evaluating '{model.name}'")  # DEBUG
+        print(f"Evaluating '{model.name}'")  # DEBUG
 
         # Provide qs_full if necessary
         if "qs_full" in model.kwargs:
@@ -280,8 +264,7 @@ def get_losses(trainer: Trainer, *, for_training: bool = False):
     set_requires_grad_models(for_training, trainer.state.trained_models)
     const_qs = trainer.state.const_qs
     if for_training:
-        batched_grids = trainer.config.get_batched_grids()
-        const_qs = get_batched_qs(const_qs, batched_grids)
+        const_qs = trainer.config.get_batched_qs(const_qs)
 
     qs = get_extended_qs(
         trainer.state, const_qs

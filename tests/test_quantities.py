@@ -121,6 +121,68 @@ def test_sum_dimension_singleton_dimension():
     assert torch.allclose(summed_tensor, 3 * tensor)
 
 
+def test_restrict():
+    sizes = {"a": 3, "b": 1, "c": 2}
+    subgrid_indices_dict = {
+        "a": [2, 1],
+        "c": [1],
+    }
+    grid = utilities.get_random_grid(sizes, seed=0)
+    subgrid = grids.Subgrid(grid, subgrid_indices_dict, copy_all=False)
+    tensor = utilities.get_random_tensor(size=(3, 1, 2), seed=0)
+
+    restricted_tensor = quantities.restrict(tensor, subgrid)
+
+    assert quantities.compatible(restricted_tensor, subgrid)
+    assert restricted_tensor[0, 0, 0] == tensor[2, 0, 1]
+    assert restricted_tensor[1, 0, 0] == tensor[1, 0, 1]
+
+
+def test_restrict_trivial():
+    sizes = {"a": 3, "b": 1, "c": 2}
+    subgrid_indices_dict: Dict[str, list[int]] = {}
+    grid = utilities.get_random_grid(sizes, seed=0)
+    subgrid = grids.Subgrid(grid, subgrid_indices_dict, copy_all=False)
+    tensor = utilities.get_random_tensor(size=(3, 1, 2), seed=0)
+
+    restricted_tensor = quantities.restrict(tensor, subgrid)
+
+    assert quantities.compatible(restricted_tensor, subgrid)
+    assert restricted_tensor is tensor
+
+
+def test_restrict_with_singleton():
+    sizes = {"a": 3, "b": 1, "c": 2}
+    subgrid_indices_dict = {
+        "a": [2, 1],
+        "c": [1],
+    }
+    grid = utilities.get_random_grid(sizes, seed=0)
+    subgrid = grids.Subgrid(grid, subgrid_indices_dict, copy_all=False)
+    tensor = utilities.get_random_tensor(size=(1, 1, 2), seed=0)
+
+    restricted_tensor = quantities.restrict(tensor, subgrid)
+
+    assert quantities.compatible(restricted_tensor, subgrid)
+    assert torch.equal(restricted_tensor, tensor[:, :, [1]])
+
+
+def test_restrict_all_singleton():
+    sizes = {"a": 3, "b": 1, "c": 2}
+    subgrid_indices_dict = {
+        "a": [2, 1],
+        "c": [1],
+    }
+    grid = utilities.get_random_grid(sizes, seed=0)
+    subgrid = grids.Subgrid(grid, subgrid_indices_dict, copy_all=False)
+    tensor = utilities.get_random_tensor(size=(1, 1, 1), seed=0)
+
+    restricted_tensor = quantities.restrict(tensor, subgrid)
+
+    assert quantities.compatible(restricted_tensor, subgrid)
+    assert restricted_tensor is tensor
+
+
 def test_expand_all_dims():
     sizes = {"a": 3, "b": 1, "c": 2}
     grid = utilities.get_random_grid(sizes, seed=0)

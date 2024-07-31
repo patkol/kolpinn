@@ -3,6 +3,7 @@
 
 import copy
 from collections.abc import Sequence
+from typing import Optional
 import torch
 import collections
 
@@ -303,6 +304,24 @@ def restrict(tensor: torch.Tensor, subgrid: Subgrid) -> torch.Tensor:
     return restricted_tensor
 
 
+def restrict_quantities(
+    q: QuantityDict,
+    subgrid: Subgrid,
+    *,
+    subgrid_for_restriction: Optional[Subgrid] = None,
+) -> QuantityDict:
+    if subgrid_for_restriction is None:
+        subgrid_for_restriction = subgrid
+
+    return QuantityDict(
+        subgrid,
+        (
+            (label, restrict(quantity, subgrid_for_restriction))
+            for (label, quantity) in q.items()
+        ),
+    )
+
+
 def expand_all_dims(tensor: torch.Tensor, grid: Grid):
     assert compatible(tensor, grid)
     return tensor.expand(grid.shape)
@@ -439,10 +458,3 @@ def combine_quantities(qs: Sequence[QuantityDict], grid: Grid):
         )
 
     return q_combined
-
-
-def restrict_quantities(q: QuantityDict, subgrid: Subgrid) -> QuantityDict:
-    return QuantityDict(
-        subgrid,
-        ((label, restrict(quantity, subgrid)) for (label, quantity) in q.items()),
-    )
