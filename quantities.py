@@ -444,16 +444,16 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
     return tensor
 
 
-def combine_quantities(qs: Sequence[QuantityDict], grid: Grid):
-    labels = set(qs[0].keys())
-    for q in qs:
+def combine_quantities(q_sequence: Sequence[QuantityDict], grid: Grid):
+    labels = set(q_sequence[0].keys())
+    for q in q_sequence:
         assert set(q.keys()) == labels
 
     q_combined = QuantityDict(grid)
     for label in labels:
         q_combined[label] = combine_quantity(
-            [q[label] for q in qs],
-            [q.grid for q in qs],
+            [q[label] for q in q_sequence],
+            [q.grid for q in q_sequence],
             grid,
         )
 

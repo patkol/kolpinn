@@ -21,7 +21,8 @@ from .model import MultiModel, set_requires_grad_models
 
 @dataclass
 class TrainerConfig:
-    get_batched_qs: Callable[[Dict[str, QuantityDict]], Dict[str, QuantityDict]]
+    # Inputs: qs, randomize
+    get_batched_qs: Callable[[Dict[str, QuantityDict], bool], Dict[str, QuantityDict]]
     # qs[grid_name][loss_quantities[grid_name]] will be used as losses
     loss_quantities: Dict[str, Sequence[str]]
     loss_aggregate_function: Callable[[Sequence], Any]
@@ -262,13 +263,10 @@ def get_losses(trainer: Trainer, *, for_training: bool = False):
         model.set_train() if for_training else model.set_eval()
 
     set_requires_grad_models(for_training, trainer.state.trained_models)
-    const_qs = trainer.state.const_qs
-    if for_training:
-        const_qs = trainer.config.get_batched_qs(const_qs)
+    const_qs_full = trainer.state.const_qs
+    const_qs_batched = trainer.config.get_batched_qs(const_qs_full, for_training)
+    qs = get_extended_qs(trainer.state, const_qs_batched)
 
-    qs = get_extended_qs(
-        trainer.state, const_qs
-    )  # TODO: Evaluate batched & combine for validation
     losses = _extract_losses(qs, trainer.config)
     losses["Total"] = trainer.config.loss_aggregate_function(list(losses.values()))
 
