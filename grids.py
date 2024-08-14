@@ -7,6 +7,8 @@ import textwrap
 import math
 import torch
 
+from . import mathematics
+
 
 class Grid:
     def __init__(
@@ -191,7 +193,7 @@ def get_as_subsubgrid(
     Return the small_subgrid as a subgrid of large_subgrid.
     Both subgrids should have the same parent_grid, and large_subgrids
     must contain all gridpoints that small_subgrid does.
-    No sorting is required.
+    The indices in `large_subgrid` must be sorted.
     """
     assert small_subgrid.parent_grid is large_subgrid.parent_grid
 
@@ -207,7 +209,8 @@ def get_as_subsubgrid(
                 # The current dimension is the same on both subgrids
                 continue
             subsubgrid_indices = [
-                parent_indices_large.index(parent_index)
+                # For unsorted: parent_indices_large.index(parent_index)
+                mathematics.binary_search(parent_indices_large, parent_index)
                 for parent_index in parent_indices_small
             ]
 

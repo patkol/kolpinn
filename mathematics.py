@@ -1,9 +1,10 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
-from typing import Dict
+from typing import Dict, Sequence
 import copy
 import itertools
+import bisect
 import torch
 
 
@@ -221,3 +222,13 @@ def interleave(tensor1: torch.Tensor, tensor2: torch.Tensor, *, dim: int):
 
 def get_chained_values(d: Dict):
     return itertools.chain.from_iterable(d.values())
+
+
+def binary_search(a: Sequence, x, lo=0, hi=None):
+    # https://stackoverflow.com/questions/212358/binary-search-bisection-in-python/2233940#2233940
+    if hi is None:
+        hi = len(a)
+    pos = bisect.bisect_left(a, x, lo, hi)  # find insertion position
+    assert pos != hi and a[pos] == x, f"a = {a} is not sorted"
+
+    return pos
