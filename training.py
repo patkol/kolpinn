@@ -210,7 +210,7 @@ def get_extended_qs(
         [state.trained_models, state.dependent_models]
     )
     for model in models:
-        print(f"Evaluating '{model.name}'")  # DEBUG
+        # print(f"Evaluating '{model.name}'")  # DEBUG
 
         # Provide qs_full if necessary
         if "qs_full" in model.kwargs:

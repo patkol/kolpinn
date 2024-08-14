@@ -41,6 +41,7 @@ def get_equispaced_batched_indices_dict(
     for batch_dimension, batch_size in batch_sizes.items():
         dim_size = grid.dim_size[batch_dimension]
         step = dim_size // batch_size
+        assert step > 0, f"{batch_dimension}: {dim_size}, {batch_size}"
         start = random.randrange(0, step) if randomize else step // 2
         indices = range(start, dim_size, step)
         indices_dict[batch_dimension] = indices
