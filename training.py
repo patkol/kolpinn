@@ -341,9 +341,12 @@ def train(
     initial_optimizer_state_dict = copy.deepcopy(trainer.state.optimizer.state_dict())
     trainer.state.training_start_time = time.perf_counter()
     validated_current_state = False
+    training_possible = (
+        trainer.config.max_n_steps is None or trainer.config.max_n_steps > 0
+    )
 
     while True:
-        if trainer.state.n_steps % report_each == 0:
+        if trainer.state.n_steps % report_each == 0 and training_possible:
             # Validate
             get_losses(trainer)
             print_progress(trainer)

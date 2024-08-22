@@ -218,11 +218,11 @@ def test_get_as_subsubgrid_missing_coords():
     parent_sizes = {"a": 3, "b": 1, "c": 4}
     parent_grid = utilities.get_random_grid(parent_sizes, seed=0)
     indices_dict1 = {
-        "a": [2, 1],
+        "a": [1, 2],
         "c": [1, 2],
     }
     indices_dict2 = {
-        "a": [1, 2, 0],
+        "a": [0, 1, 2],
         "c": [0, 1],
     }
     subgrid1 = grids.Subgrid(parent_grid, indices_dict1, copy_all=False)

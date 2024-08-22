@@ -229,6 +229,7 @@ def binary_search(a: Sequence, x, lo=0, hi=None):
     if hi is None:
         hi = len(a)
     pos = bisect.bisect_left(a, x, lo, hi)  # find insertion position
-    assert pos != hi and a[pos] == x, f"a = {a} is not sorted"
+    if pos == hi or a[pos] != x:
+        raise ValueError(f"a = {a} is not sorted or does not contain {x}")
 
     return pos
