@@ -28,6 +28,8 @@ class TrainerConfig:
     loss_aggregate_function: Callable[[Sequence], Any]
     saved_parameters_index: int
     save_optimizer: bool
+    Optimizer: type
+    optimizer_kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
     max_n_steps: Optional[int] = None
     max_time: Optional[float] = None
     min_loss: Optional[float] = None
@@ -85,12 +87,10 @@ def get_all_parameters(models: Sequence[MultiModel]) -> Sequence[torch.Tensor]:
 
 
 def get_optimizer(
-    Optimizer: type,
-    trained_models: Sequence[MultiModel],
-    **kwargs,
+    config: TrainerConfig, *, trained_models: Sequence[MultiModel]
 ) -> torch.optim.Optimizer:
     all_parameters = get_all_parameters(trained_models)
-    return Optimizer(all_parameters, **kwargs)
+    return config.Optimizer(all_parameters, **config.optimizer_kwargs)
 
 
 def get_scheduler(
@@ -189,6 +189,12 @@ def load(
         trainer.state.scheduler.load_state_dict(save_dict["scheduler_state_dict"])
 
     trainer.state.n_loaded_current_parameters += 1
+
+
+def reset_optimizer(trainer: Trainer) -> None:
+    trainer.state.optimizer = get_optimizer(
+        trainer.config, trained_models=trainer.state.trained_models
+    )
 
 
 def get_extended_qs(
@@ -338,7 +344,6 @@ def train(
     report_each: int,
     save_if_best: bool,
 ):
-    initial_optimizer_state_dict = copy.deepcopy(trainer.state.optimizer.state_dict())
     trainer.state.training_start_time = time.perf_counter()
     validated_current_state = False
     training_possible = (
@@ -392,9 +397,7 @@ def train(
                 load_optimizer=False,
                 load_scheduler=False,
             )
-            trainer.state.optimizer.load_state_dict(
-                copy.deepcopy(initial_optimizer_state_dict)
-            )
+            reset_optimizer(trainer)
             if trainer.state.n_loaded_current_parameters > 0:
                 for param_group in trainer.state.optimizer.param_groups:
                     reduction_factor = trainer.state.n_loaded_current_parameters + 1
