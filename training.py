@@ -30,6 +30,8 @@ class TrainerConfig:
     save_optimizer: bool
     Optimizer: type
     optimizer_kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    Scheduler: Optional[type] = None
+    scheduler_kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
     max_n_steps: Optional[int] = None
     max_time: Optional[float] = None
     min_loss: Optional[float] = None
@@ -216,7 +218,7 @@ def get_extended_qs(
         [state.trained_models, state.dependent_models]
     )
     for model in models:
-        # print(f"Evaluating '{model.name}'")  # DEBUG
+        # print(f'Evaluating "{model.name}"')  # DEBUG
 
         # Provide qs_full if necessary
         if "qs_full" in model.kwargs:

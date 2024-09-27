@@ -3,11 +3,12 @@
 
 import copy
 from collections.abc import Sequence
-from typing import Optional
+from typing import Optional, Any
 import torch
 import collections
 
 from . import mathematics
+from . import grids
 from .grids import Grid, Subgrid
 
 
@@ -97,6 +98,31 @@ def sum_dimensions(
     return out
 
 
+def cumsum_dimension(
+    label: str,
+    tensor: torch.Tensor,
+    grid: Grid,
+    *,
+    reverse: bool = False,
+) -> torch.Tensor:
+    """
+    Cumulative sum over the dimension `label`:
+    [a, b, c] -> [a, a+b, a+b+c]
+                 [a+b+c, b+c, c] if `reverse`
+    """
+
+    assert compatible(tensor, grid)
+
+    sum_index = grid.index[label]
+    if reverse:
+        tensor = torch.flip(tensor, [sum_index])
+    summed_tensor = torch.cumsum(tensor, dim=sum_index)
+    if reverse:
+        summed_tensor = torch.flip(summed_tensor, [sum_index])
+
+    return summed_tensor
+
+
 def mean_dimension(
     label: str,
     tensor: torch.Tensor,
@@ -120,8 +146,60 @@ def mean_dimensions(
     return out
 
 
+def get_cumulative_integral(
+    label: str,
+    start_coordinate: float,
+    integrand: torch.Tensor,
+    grid: Grid,
+    start_value: Optional[Any] = None,
+) -> torch.Tensor:
+    """
+    Returns a tensor representing the integral in the dimension `label` from
+    `start_coordinate` to every coordinate. The value of the integral at
+    `start_coordinate` is `start_value`, or zero by default.
+    """
+    # Sort for ascending coordinate
+    coords = grid[label]
+    sorted_coords, sorting_indices = torch.sort(coords)
+    sorting_slice = grids.get_nd_slice(label, sorting_indices, grid)
+    sorted_integrand = integrand[sorting_slice]
+
+    # Identify the index corresponding to the `start_coordinate`
+    start_indices = torch.nonzero(sorted_coords == start_coordinate)
+    assert start_indices.size() == (1, 1)
+    start_index = start_indices[0, 0]
+
+    # Calculate the integral to the right / left
+    sorted_integral = torch.zeros_like(integrand)
+    if start_value is not None:
+        start_slice = grids.get_nd_slice(label, start_index, grid)
+        sorted_integral[start_slice] = start_value
+    for direction in (1, -1):
+        range_stop = len(sorted_coords) if direction == 1 else -1
+        for i in range(start_index + direction, range_stop, direction):
+            i_prev = i - direction
+            prev_slice = grids.get_nd_slice(label, i_prev, grid)
+            current_slice = grids.get_nd_slice(label, i, grid)
+            avg_integrand = (
+                sorted_integrand[prev_slice] + sorted_integrand[current_slice]
+            ) / 2
+            delta_coord = sorted_coords[i] - sorted_coords[i_prev]
+            sorted_integral[current_slice] = (
+                sorted_integral[prev_slice] + avg_integrand * delta_coord
+            )
+
+    # Undo the sorting
+    unsorting_indices = torch.argsort(sorting_indices)
+    unsorting_slice = grids.get_nd_slice(label, unsorting_indices, grid)
+    integral = sorted_integral[unsorting_slice]
+
+    assert integral.size() == integrand.size()
+
+    return integral
+
+
 def _get_derivative(
-    dim_index,
+    dim_label: str,
     tensor: torch.Tensor,
     grid: Grid,
     *,
@@ -129,14 +207,14 @@ def _get_derivative(
 ) -> torch.Tensor:
     assert compatible(tensor, grid)
 
-    dimension = grid[grid.dimensions_labels[dim_index]]
+    dimension = grid[dim_label]
 
     if slice_ is not None:
-        slices = [slice(None)] * grid.n_dim
-        slices[dim_index] = slice_
+        slices = grids.get_nd_slice(dim_label, slice_, grid)
         tensor = tensor[slices]
         dimension = dimension[slice_]
 
+    dim_index = grid.index[dim_label]
     tensor_diff = torch.diff(tensor, dim=dim_index)
     dimension_diff = torch.diff(dimension)
     dimension_diff = mathematics.expand(
@@ -162,21 +240,19 @@ def get_fd_derivative(
     """
     assert compatible(tensor, grid)
 
-    dim_index = grid.index[dimension]
-
     # Calculate the central differences:
     # odd_derivatives starts at index 1 and
     # even at 2
     even_slice = slice(0, None, 2)
     odd_slice = slice(1, None, 2)
     odd_derivative = _get_derivative(
-        dim_index,
+        dimension,
         tensor,
         grid,
         slice_=even_slice,
     )
     even_derivative = _get_derivative(
-        dim_index,
+        dimension,
         tensor,
         grid,
         slice_=odd_slice,
@@ -184,20 +260,20 @@ def get_fd_derivative(
     derivative = mathematics.interleave(
         odd_derivative,
         even_derivative,
-        dim=dim_index,
+        dim=grid.index[dimension],
     )
 
     # Calculate the derivatives at the left and right
     left_slice = slice(0, 2)
     right_slice = slice(-2, None)
     left_mid_derivative = _get_derivative(
-        dim_index,
+        dimension,
         tensor,
         grid,
         slice_=left_slice,
     )
     right_mid_derivative = _get_derivative(
-        dim_index,
+        dimension,
         tensor,
         grid,
         slice_=right_slice,
@@ -209,18 +285,15 @@ def get_fd_derivative(
     # Equivalent to the left/right-sided stencils at (4) in
     # https://www.colorado.edu/amath/sites/default/files/attached-files/wk10_finitedifferences.pdf
     # for equispaced grids.
-    full_slices = [slice(None)] * grid.n_dim
-    left_slices = copy.copy(full_slices)
-    left_slices[dim_index] = slice(0, 1)
-    right_slices = copy.copy(full_slices)
-    right_slices[dim_index] = slice(-1, None)
+    left_slices = grids.get_nd_slice(dimension, slice(0, 1), grid)
+    right_slices = grids.get_nd_slice(dimension, slice(-1, None), grid)
     left_inner_derivative = derivative[left_slices]
     right_inner_derivative = derivative[right_slices]
     left_derivative = 2 * left_mid_derivative - left_inner_derivative
     right_derivative = 2 * right_mid_derivative - right_inner_derivative
     derivative = torch.cat(
         (left_derivative, derivative, right_derivative),
-        dim_index,
+        grid.index[dimension],
     )
 
     return derivative
@@ -241,13 +314,9 @@ def get_fd_second_derivative(
     dim_index = grid.index[dimension]
 
     dx = (grid[dimension][-1] - grid[dimension][0]) / (grid.dim_size[dimension] - 1)
-    full_slices = [slice(None)] * grid.n_dim
-    left_slices = copy.copy(full_slices)
-    left_slices[dim_index] = slice(0, -2)
-    mid_slices = copy.copy(full_slices)
-    mid_slices[dim_index] = slice(1, -1)
-    right_slices = copy.copy(full_slices)
-    right_slices[dim_index] = slice(2, None)
+    left_slices = grids.get_nd_slice(dimension, slice(0, -2), grid)
+    mid_slices = grids.get_nd_slice(dimension, slice(1, -1), grid)
+    right_slices = grids.get_nd_slice(dimension, slice(2, None), grid)
     second_derivative = (
         tensor[left_slices] + tensor[right_slices] - 2 * tensor[mid_slices]
     ) / dx**2
@@ -256,14 +325,10 @@ def get_fd_second_derivative(
     # Equivalent to the left/right-sided stencils at (4) in
     # https://www.colorado.edu/amath/sites/default/files/attached-files/wk10_finitedifferences.pdf
     # for equispaced grids.
-    left_slices = copy.copy(full_slices)
-    left_slices[dim_index] = slice(0, 1)
-    second_left_slices = copy.copy(full_slices)
-    second_left_slices[dim_index] = slice(1, 2)
-    right_slices = copy.copy(full_slices)
-    right_slices[dim_index] = slice(-1, None)
-    second_right_slices = copy.copy(full_slices)
-    second_right_slices[dim_index] = slice(-2, -1)
+    left_slices = grids.get_nd_slice(dimension, slice(0, 1), grid)
+    second_left_slices = grids.get_nd_slice(dimension, slice(1, 2), grid)
+    right_slices = grids.get_nd_slice(dimension, slice(-1, None), grid)
+    second_right_slices = grids.get_nd_slice(dimension, slice(-2, -1), grid)
     left_derivative = (
         2 * second_derivative[left_slices] - second_derivative[second_left_slices]
     )
@@ -427,8 +492,7 @@ def combine_quantity(quantity_list, subgrid_list, grid: Grid):
             new_shape[dim] = grid.dim_size[label]
             new_tensor = torch.zeros(new_shape, dtype=dtype)
             new_covered = torch.zeros(new_shape, dtype=torch.bool)
-            slices = [slice(None)] * grid.n_dim
-            slices[dim] = subgrid.indices_dict[label]
+            slices = grids.get_nd_slice(label, subgrid.indices_dict[label], grid)
             new_tensor[slices] = sub_tensor
             new_covered[slices] = sub_covered
             sub_tensor = new_tensor
@@ -458,3 +522,69 @@ def combine_quantities(q_sequence: Sequence[QuantityDict], grid: Grid):
         )
 
     return q_combined
+
+
+def interpolate(
+    quantity_in: torch.Tensor, grid_in: Grid, grid_out: Grid, *, dimension_label: str
+):
+    """
+    Interpolate linearly from `quantity_in` on `grid_in` to `grid_out`, where
+    the grids differ only in the dimension `dimension_label`.
+    For gridpoints outside the range of `grid_in[dimension_label]` we extrapolate
+    using the two outermost points.
+    Assuming ordered grid_in & grid_out in `dimension_label`.
+    If the grids are the same, a clone of quantity_in is returned.
+    """
+
+    assert compatible(quantity_in, grid_in)
+    n_dim = grid_in.n_dim
+
+    # Assert grid compatibility
+    assert grid_out.n_dim == n_dim
+    for (label_in, coordinates_in), (label_out, coordinates_out) in zip(
+        grid_in.dimensions.items(), grid_out.dimensions.items()
+    ):
+        assert label_in == label_out
+        if label_in == dimension_label:
+            continue
+        assert torch.equal(coordinates_in, coordinates_out)
+
+    coordinates_in = grid_in[dimension_label]
+    coordinates_out = grid_out[dimension_label]
+
+    if torch.equal(coordinates_in, coordinates_out):
+        return torch.clone(quantity_in)
+
+    dimension_index = grid_in.index[dimension_label]
+    shape_out = list(quantity_in.size())
+    shape_out[dimension_index] = len(coordinates_out)
+    quantity_out = torch.zeros(shape_out, dtype=quantity_in.dtype)
+
+    i_in = 0  # index of coordinates_in
+    for i_out, coordinate_out in enumerate(coordinates_out):
+        while (
+            i_in + 1 < len(coordinates_in) - 1
+            and coordinates_in[i_in + 1] < coordinate_out
+        ):
+            i_in += 1
+
+        i_in_left = i_in
+        i_in_right = i_in + 1
+        coordinate_left = coordinates_in[i_in_left]
+        coordinate_right = coordinates_in[i_in_right]
+        slices_left = [slice(None)] * n_dim
+        slices_left[dimension_index] = i_in_left
+        slices_right = [slice(None)] * n_dim
+        slices_right[dimension_index] = i_in_right
+        slices_out = [slice(None)] * n_dim
+        slices_out[dimension_index] = i_out
+        weight_left = (coordinate_right - coordinate_out) / (
+            coordinate_right - coordinate_left
+        )
+        weight_right = 1 - weight_left
+        quantity_out[slices_out] = (
+            weight_left * quantity_in[slices_left]
+            + weight_right * quantity_in[slices_right]
+        )
+
+    return quantity_out

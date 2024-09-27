@@ -121,6 +121,36 @@ def test_sum_dimension_singleton_dimension():
     assert torch.allclose(summed_tensor, 3 * tensor)
 
 
+def test_get_cumulative_integral_1D():
+    integrand = torch.tensor([0, 1, 3, 1], dtype=torch.float32)
+    x = torch.tensor([2, 4, 5, 7], dtype=torch.float32)
+    grid = grids.Grid({"x": x})
+
+    integral = quantities.get_cumulative_integral(
+        "x", 5, integrand, grid, start_value=10
+    )
+
+    assert torch.allclose(integral, torch.tensor([7, 8, 10, 14], dtype=torch.float32))
+
+
+def test_get_cumulative_integral_3D_shuffled():
+    x = utilities.get_random_tensor(size=(2,), seed=1)
+    y = torch.tensor([3, 1, 0, 2], dtype=torch.float32)
+    z = utilities.get_random_tensor(size=(4,), seed=1)
+    dimensions = {"x": x, "y": y, "z": z}
+    grid = grids.Grid(dimensions)
+    # fmt: off
+    integrand = torch.tensor(
+        [[0,], [1,], [3,], [1,]], dtype=torch.float32
+    ).expand(2, -1, 1)
+    # fmt: on
+
+    integral = quantities.get_cumulative_integral("y", 0, integrand, grid)
+
+    for x_index in range(2):
+        assert torch.allclose(integral[x_index, :, 0], torch.tensor([3.5, 2, 0, 3]))
+
+
 def test_restrict():
     sizes = {"a": 3, "b": 1, "c": 2}
     subgrid_indices_dict = {
@@ -388,3 +418,49 @@ def test_combine_quantity_leaves_unsliced_singleton_dimension():
     )
 
     assert torch.equal(combined_quantity, quantity_full)
+
+
+def test_interpolate_1D():
+    quantity_in = torch.tensor([0, 1, 3], dtype=torch.float32)
+    x_in = torch.tensor([2, 4, 6], dtype=torch.float32)
+    x_out = torch.tensor([0, 2, 4, 5, 6, 7], dtype=torch.float32)
+    grid_in = grids.Grid({"x": x_in})
+    grid_out = grids.Grid({"x": x_out})
+
+    quantity_out = quantities.interpolate(
+        quantity_in, grid_in, grid_out, dimension_label="x"
+    )
+
+    assert torch.allclose(
+        quantity_out, torch.tensor([-1, 0, 1, 2, 3, 4], dtype=torch.float32)
+    )
+
+
+def test_interpolate_3D():
+    quantity_in = utilities.get_random_tensor(size=(2, 3, 4), seed=0)
+    x = utilities.get_random_tensor(size=(2,), seed=1)
+    y_in = torch.tensor([0, 1, 3], dtype=torch.float32)
+    y_out = torch.tensor([0.5, 3], dtype=torch.float32)
+    z = utilities.get_random_tensor(size=(4,), seed=1)
+    dimensions_in = {"x": x, "y": y_in, "z": z}
+    dimensions_out = {"x": x, "y": y_out, "z": z}
+    grid_in = grids.Grid(dimensions_in)
+    grid_out = grids.Grid(dimensions_out)
+
+    quantity_out = quantities.interpolate(
+        quantity_in, grid_in, grid_out, dimension_label="y"
+    )
+
+    assert torch.allclose(
+        quantity_out[:, 0, :], (quantity_in[:, 0, :] + quantity_in[:, 1, :]) / 2
+    )
+    assert torch.equal(quantity_out[:, 1, :], quantity_in[:, 2, :])
+
+
+def test_interpolate_equal():
+    quantity_in = utilities.get_random_tensor(size=(2, 3, 4), seed=0)
+    grid = utilities.get_random_grid({"x": 2, "y": 3, "z": 4}, seed=1)
+
+    quantity_out = quantities.interpolate(quantity_in, grid, grid, dimension_label="z")
+
+    assert torch.equal(quantity_in, quantity_out)

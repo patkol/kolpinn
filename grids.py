@@ -245,3 +245,10 @@ def get_as_subgrid(subsubgrid: Subgrid, *, copy_all: bool) -> Subgrid:
 
     new_subgrid = Subgrid(parent_grid, new_subgrid_indices_dict, copy_all=copy_all)
     return new_subgrid
+
+
+def get_nd_slice(dim_label: str, dim_slice, grid: Grid):
+    slices = [slice(None)] * grid.n_dim
+    slices[grid.index[dim_label]] = dim_slice
+
+    return slices
