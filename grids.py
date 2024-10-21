@@ -1,7 +1,7 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
-from typing import Dict
+from typing import Dict, Sequence
 import copy
 import textwrap
 import math
@@ -252,3 +252,16 @@ def get_nd_slice(dim_label: str, dim_slice, grid: Grid):
     slices[grid.index[dim_label]] = dim_slice
 
     return slices
+
+
+def get_sorted_grid_along(
+    dim_labels: Sequence[str],
+    grid: Grid,
+    copy_all: bool,
+) -> Subgrid:
+    indices_dict: dict = {}
+    for dim_label in dim_labels:
+        indices_dict[dim_label] = torch.argsort(grid[dim_label])
+    sorted_grid = Subgrid(grid, indices_dict, copy_all=copy_all)
+
+    return sorted_grid

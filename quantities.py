@@ -1,7 +1,6 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
-import copy
 from collections.abc import Sequence
 from typing import Optional, Any
 import torch
@@ -64,6 +63,14 @@ def might_depend_on(label: str, tensor: torch.Tensor, grid: Grid) -> bool:
     return (not is_singleton_dimension(label, tensor, grid)) or grid.dim_size[
         label
     ] == 1
+
+
+def sort_along(label: str, tensor: torch.Tensor, grid: Grid):
+    """Sort for ascending `label`-coordinate"""
+    coords = grid[label]
+    sorted_coords, sorting_indices = torch.sort(coords)
+    sorting_slice = grids.get_nd_slice(label, sorting_indices, grid)
+    sorted_integrand = integrand[sorting_slice]
 
 
 def sum_dimension(
@@ -157,41 +164,30 @@ def get_cumulative_integral(
     Returns a tensor representing the integral in the dimension `label` from
     `start_coordinate` to every coordinate. The value of the integral at
     `start_coordinate` is `start_value`, or zero by default.
+    The `grid` must be sorted in the `label`-coordinate.
     """
-    # Sort for ascending coordinate
     coords = grid[label]
-    sorted_coords, sorting_indices = torch.sort(coords)
-    sorting_slice = grids.get_nd_slice(label, sorting_indices, grid)
-    sorted_integrand = integrand[sorting_slice]
+    assert torch.equal(torch.sort(coords)[0], coords)
 
     # Identify the index corresponding to the `start_coordinate`
-    start_indices = torch.nonzero(sorted_coords == start_coordinate)
+    start_indices = torch.nonzero(coords == start_coordinate)
     assert start_indices.size() == (1, 1)
     start_index = start_indices[0, 0]
 
     # Calculate the integral to the right / left
-    sorted_integral = torch.zeros_like(integrand)
+    integral = torch.zeros_like(integrand)
     if start_value is not None:
         start_slice = grids.get_nd_slice(label, start_index, grid)
-        sorted_integral[start_slice] = start_value
+        integral[start_slice] = start_value
     for direction in (1, -1):
-        range_stop = len(sorted_coords) if direction == 1 else -1
+        range_stop = len(coords) if direction == 1 else -1
         for i in range(start_index + direction, range_stop, direction):
             i_prev = i - direction
             prev_slice = grids.get_nd_slice(label, i_prev, grid)
             current_slice = grids.get_nd_slice(label, i, grid)
-            avg_integrand = (
-                sorted_integrand[prev_slice] + sorted_integrand[current_slice]
-            ) / 2
-            delta_coord = sorted_coords[i] - sorted_coords[i_prev]
-            sorted_integral[current_slice] = (
-                sorted_integral[prev_slice] + avg_integrand * delta_coord
-            )
-
-    # Undo the sorting
-    unsorting_indices = torch.argsort(sorting_indices)
-    unsorting_slice = grids.get_nd_slice(label, unsorting_indices, grid)
-    integral = sorted_integral[unsorting_slice]
+            avg_integrand = (integrand[prev_slice] + integrand[current_slice]) / 2
+            delta_coord = coords[i] - coords[i_prev]
+            integral[current_slice] = integral[prev_slice] + avg_integrand * delta_coord
 
     assert integral.size() == integrand.size()
 

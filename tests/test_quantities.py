@@ -133,9 +133,9 @@ def test_get_cumulative_integral_1D():
     assert torch.allclose(integral, torch.tensor([7, 8, 10, 14], dtype=torch.float32))
 
 
-def test_get_cumulative_integral_3D_shuffled():
+def test_get_cumulative_integral_3D():
     x = utilities.get_random_tensor(size=(2,), seed=1)
-    y = torch.tensor([3, 1, 0, 2], dtype=torch.float32)
+    y = torch.tensor([0, 1, 2, 3], dtype=torch.float32)
     z = utilities.get_random_tensor(size=(4,), seed=1)
     dimensions = {"x": x, "y": y, "z": z}
     grid = grids.Grid(dimensions)
@@ -148,7 +148,7 @@ def test_get_cumulative_integral_3D_shuffled():
     integral = quantities.get_cumulative_integral("y", 0, integrand, grid)
 
     for x_index in range(2):
-        assert torch.allclose(integral[x_index, :, 0], torch.tensor([3.5, 2, 0, 3]))
+        assert torch.allclose(integral[x_index, :, 0], torch.tensor([0, 0.5, 2.5, 4.5]))
 
 
 def test_restrict():

@@ -303,3 +303,20 @@ def test_get_as_subgrid_dim_only_in_subsubgrid():
             new_subgrid.dimensions[dimension],
             subsubgrid.dimensions[dimension],
         ), dimension
+
+
+def test_get_sorted_grid_along():
+    dtype = torch.float32
+    a_tensor = torch.tensor([0, 2, 1], dtype=dtype)
+    b_tensor = torch.tensor([0.2, -1.2, -7.1, 5.2], dtype=dtype)
+    c_tensor = torch.tensor([8, 7], dtype=dtype)
+    dimensions = {"a": a_tensor, "b": b_tensor, "c": c_tensor}
+    grid = grids.Grid(dimensions)
+
+    sorted_grid = grids.get_sorted_grid_along(["a", "b"], grid, copy_all=False)
+
+    assert torch.equal(sorted_grid["a"], torch.tensor([0, 1, 2], dtype=dtype))
+    assert torch.equal(
+        sorted_grid["b"], torch.tensor([-7.1, -1.2, 0.2, 5.2], dtype=dtype)
+    )
+    assert sorted_grid["c"] is c_tensor
