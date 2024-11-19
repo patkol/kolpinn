@@ -152,8 +152,8 @@ def reset_to_best(trainer: Trainer) -> Tuple[bool, Optional[str]]:
     return False, None
 
 
-def save(trainer: Trainer):
-    path = get_parameters_path(trainer.config.saved_parameters_index)
+def save(trainer: Trainer, subpath: str):
+    path = get_parameters_path(trainer.config.saved_parameters_index) + subpath
     os.makedirs(path, exist_ok=True)
 
     model_parameters_dict: Dict[str, Sequence[torch.Tensor]] = {}
@@ -167,13 +167,14 @@ def save(trainer: Trainer):
     if trainer.state.scheduler is not None:
         save_dict["scheduler_state_dict"] = trainer.state.scheduler.state_dict()
 
-    torch.save(save_dict, path + "all.pth")
+    torch.save(save_dict, path + "nn_state.pth")
     trainer.state.n_loaded_current_parameters = 0
 
 
 def load(
     parameters_index: Optional[int],
     trainer: Trainer,
+    subpath: str,
     *,
     load_optimizer: bool,
     load_scheduler: bool,
@@ -181,8 +182,8 @@ def load(
     if parameters_index is None:
         return
 
-    path = get_parameters_path(parameters_index)
-    save_dict = torch.load(path + "all.pth")
+    path = get_parameters_path(parameters_index) + subpath
+    save_dict = torch.load(path + "nn_state.pth")
     for model in trainer.state.trained_models:
         model.replace_parameters(save_dict["model_parameters_dict"][model.name])
     if load_optimizer:
@@ -345,6 +346,7 @@ def train(
     *,
     report_each: int,
     save_if_best: bool,
+    save_subpath: str,
 ):
     trainer.state.training_start_time = time.perf_counter()
     validated_current_state = False
@@ -366,7 +368,7 @@ def train(
                 and current_validation_loss < trainer.state.best_validation_loss
             ):
                 # Saving at step 0 as well to reserve the `saved_parameters_index`
-                save(trainer)
+                save(trainer, save_subpath)
                 trainer.state.best_validation_loss = current_validation_loss
 
             # Update scheduler
