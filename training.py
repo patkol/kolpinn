@@ -203,6 +203,8 @@ def reset_optimizer(trainer: Trainer) -> None:
 def get_extended_qs(
     state: TrainerState,
     const_qs: Optional[Dict[str, QuantityDict]] = None,
+    *,
+    additional_models: Optional[Sequence[MultiModel]] = None,
 ):
     """
     Get a new qs including the parameter-dependent quantities, starting from
@@ -212,6 +214,8 @@ def get_extended_qs(
 
     if const_qs is None:
         const_qs = state.const_qs
+    if additional_models is None:
+        additional_models = []
 
     # Copy all `QuantityDict`s
     qs = dict((label, copy.copy(q)) for label, q in const_qs.items())
@@ -234,6 +238,9 @@ def get_extended_qs(
         if model.name not in state.evaluation_times:
             state.evaluation_times[model.name] = 0
         state.evaluation_times[model.name] += eval_time
+
+    for model in additional_models:
+        model.apply(qs)
 
     return qs
 
@@ -314,8 +321,8 @@ def print_progress(trainer: Trainer):
         trainer.config.loss_quantities
     )
     for i, loss_name in enumerate(loss_quantities_chain):
-        print(f"{loss_name}: {validation_losses[i]:>7f} ({training_losses[i]:>7f})")
-    print(f"Total loss: {validation_losses[-1]:>7f} ({training_losses[-1]:>7f})")
+        print(f"{loss_name}: {validation_losses[i]:.9f} ({training_losses[i]:.9f})")
+    print(f"Total loss: {validation_losses[-1]:.9f} ({training_losses[-1]:.9f})")
     print()
 
 
@@ -398,6 +405,7 @@ def train(
             load(
                 trainer.config.saved_parameters_index,
                 trainer,
+                save_subpath,
                 load_optimizer=False,
                 load_scheduler=False,
             )
