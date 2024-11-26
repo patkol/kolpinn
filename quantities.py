@@ -543,7 +543,12 @@ def interpolate(
         assert label_in == label_out
         if label_in == dimension_label:
             continue
-        assert torch.equal(coordinates_in, coordinates_out)
+        # No need to check if independent of the current dimension
+        if not might_depend_on(label_in, quantity_in, grid_in):
+            continue
+        assert torch.equal(
+            coordinates_in, coordinates_out
+        ), "The grids differ in dimensions other than the interpolated one"
 
     coordinates_in = grid_in[dimension_label]
     coordinates_out = grid_out[dimension_label]
