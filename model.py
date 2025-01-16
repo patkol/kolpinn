@@ -530,8 +530,8 @@ coordinates_model = MultiModel(add_coordinates, "coordinates")
 
 def get_qs(
     grids_: Dict[str, Grid],
-    models: list[MultiModel],
-    quantities_requiring_grad: Dict[str, list[str]],
+    models: Sequence[MultiModel],
+    quantities_requiring_grad: Dict[str, Sequence[str]],
 ):
     """Get the non-extended qs that do not depend on trained parameters."""
 
@@ -551,7 +551,7 @@ def get_qs(
 
 
 def set_requires_grad_quantities(
-    quantities_dict: Dict[str, list[str]],
+    quantities_dict: Dict[str, Sequence[str]],
     qs: Dict[str, QuantityDict],
     *,
     allow_missing_quantities: bool = False,

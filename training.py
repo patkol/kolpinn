@@ -269,7 +269,9 @@ def log_losses(
     history.times = np.append(history.times, [time_passed])
 
 
-def get_losses(trainer: Trainer, *, for_training: bool = False):
+def get_losses(
+    trainer: Trainer, *, for_training: bool = False, return_extended_qs: bool = False
+):
     """
     losses['Total'] is the total loss.
     """
@@ -290,6 +292,9 @@ def get_losses(trainer: Trainer, *, for_training: bool = False):
     assert trainer.state.training_start_time is not None
     time_passed = time.perf_counter() - trainer.state.training_start_time
     log_losses(losses, history, time_passed)
+
+    if return_extended_qs:
+        return losses, qs
 
     return losses
 
