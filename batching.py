@@ -1,7 +1,7 @@
 # Copyright (c) 2024 ETH Zurich, Patrice Kolb
 
 
-from typing import Sequence, Dict
+from typing import Sequence, Dict, Callable, Tuple
 import itertools
 import random
 
@@ -47,6 +47,60 @@ def get_equispaced_batched_indices_dict(
         indices_dict[batch_dimension] = indices
 
     return indices_dict
+
+
+def get_bounds_batched_indices_dict(
+    grid: Grid,
+    batch_bounds: Dict[str, Tuple[float, float]],
+):
+    """
+    batch_bounds[dimension_name] = (minimum value, maximum value) of this dimension
+    The batch will consist of the values satisfying
+    minimum_value <= value <= maximum_value
+    """
+
+    indices_dict: Dict[str, Sequence[int]] = {}
+    for batch_dimension, bounds in batch_bounds.items():
+        coords = grid[batch_dimension]
+        # start/stop: first/last index within the bounds
+        start = 0
+        while start < len(coords) and coords[start] < bounds[0]:
+            start += 1
+        stop = start
+        while stop < len(coords) and coords[stop] <= bounds[1]:
+            stop += 1
+
+        indices = range(start, stop)
+        indices_dict[batch_dimension] = indices
+
+    return indices_dict
+
+
+def get_combined_batched_indices_dict(
+    grid: Grid,
+    batched_indices_dict_fns: Sequence[
+        Callable[[Grid, bool], Dict[str, Sequence[int]]]
+    ],
+    *,
+    randomize: bool,
+):
+    """
+    Combine multiple batching functions.
+    batched_indices_dict_fns should map (grid, randomize) to an indices_dict.
+    """
+
+    full_indices_dict: Dict[str, Sequence[int]] = {}
+    for batches_indices_dict_fn in batched_indices_dict_fns:
+        indices_dict = batches_indices_dict_fn(grid, randomize)
+        for label, indices in indices_dict.items():
+            if label not in full_indices_dict:
+                full_indices_dict[label] = indices
+                continue
+            full_indices_dict[label] = list(
+                filter(lambda x: x in indices, full_indices_dict[label])
+            )
+
+    return full_indices_dict
 
 
 def get_batched_indices_dicts_covering_all(

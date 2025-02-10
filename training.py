@@ -22,7 +22,8 @@ from .model import MultiModel, set_requires_grad_models
 @dataclass
 class TrainerConfig:
     # Inputs: qs, randomize
-    get_batched_qs: Callable[[Dict[str, QuantityDict], bool], Dict[str, QuantityDict]]
+    get_batched_qs: Callable[..., Dict[str, QuantityDict]]
+    get_batched_qs_kwargs: Dict[str, Any]
     # qs[grid_name][loss_quantities[grid_name]] will be used as losses
     loss_quantities: Dict[str, Sequence[str]]
     loss_aggregate_function: Callable[[Sequence], Any]
@@ -282,7 +283,11 @@ def get_losses(
 
     set_requires_grad_models(for_training, trainer.state.trained_models)
     const_qs_full = trainer.state.const_qs
-    const_qs_batched = trainer.config.get_batched_qs(const_qs_full, for_training)
+    const_qs_batched = trainer.config.get_batched_qs(
+        const_qs_full,
+        for_training,
+        **trainer.config.get_batched_qs_kwargs,
+    )
     qs = get_extended_qs(trainer.state, const_qs_batched)
 
     losses = _extract_losses(qs, trainer.config)
