@@ -107,6 +107,38 @@ def get_scheduler(
     return Scheduler(optimizer, **kwargs)
 
 
+def get_trainer_state(
+    config: TrainerConfig,
+    const_qs: Dict[str, QuantityDict],
+    trained_models: Sequence[MultiModel],
+    dependent_models: Sequence[MultiModel],
+) -> TrainerState:
+    optimizer = get_optimizer(config, trained_models=trained_models)
+    scheduler = get_scheduler(
+        config.Scheduler,
+        optimizer,
+        **config.scheduler_kwargs,
+    )
+    state = TrainerState(
+        const_qs,
+        trained_models,
+        dependent_models,
+        optimizer,
+        scheduler,
+    )
+
+    return state
+
+
+def reset_trainer_state(trainer: Trainer) -> None:
+    trainer.state = get_trainer_state(
+        config=trainer.config,
+        const_qs=trainer.state.const_qs,
+        trained_models=trainer.state.trained_models,
+        dependent_models=trainer.state.dependent_models,
+    )
+
+
 def stop_training(trainer: Trainer) -> Tuple[bool, Optional[str]]:
     """
     Return (whether to stop, reason)
