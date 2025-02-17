@@ -1,4 +1,4 @@
-# Copyright (c) 2024 ETH Zurich, Patrice Kolb
+# Copyright (c) 2025 ETH Zurich, Patrice Kolb
 
 
 from typing import Dict, Sequence
