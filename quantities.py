@@ -65,14 +65,6 @@ def might_depend_on(label: str, tensor: torch.Tensor, grid: Grid) -> bool:
     ] == 1
 
 
-def sort_along(label: str, tensor: torch.Tensor, grid: Grid):
-    """Sort for ascending `label`-coordinate"""
-    coords = grid[label]
-    sorted_coords, sorting_indices = torch.sort(coords)
-    sorting_slice = grids.get_nd_slice(label, sorting_indices, grid)
-    sorted_integrand = integrand[sorting_slice]
-
-
 def sum_dimension(
     label: str,
     tensor: torch.Tensor,
@@ -299,12 +291,16 @@ def get_fd_second_derivative(
     dimension: str,
     tensor: torch.Tensor,
     grid: Grid,
+    *,
+    factor: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Seperate treatment of the second derivative to make sure
     not only even/odd points are used in each point.
     Will be inaccurate on non-equispaced grids.
+    If `factor` is provided, d_x factor d_x tensor is computed.
     """
+
     assert compatible(tensor, grid)
 
     dim_index = grid.index[dimension]
@@ -313,9 +309,19 @@ def get_fd_second_derivative(
     left_slices = grids.get_nd_slice(dimension, slice(0, -2), grid)
     mid_slices = grids.get_nd_slice(dimension, slice(1, -1), grid)
     right_slices = grids.get_nd_slice(dimension, slice(2, None), grid)
-    second_derivative = (
-        tensor[left_slices] + tensor[right_slices] - 2 * tensor[mid_slices]
-    ) / dx**2
+
+    if factor is None:
+        second_derivative = (
+            tensor[left_slices] + tensor[right_slices] - 2 * tensor[mid_slices]
+        ) / dx**2
+    else:
+        first_derivative_right = (tensor[right_slices] - tensor[mid_slices]) / dx
+        first_derivative_left = (tensor[mid_slices] - tensor[left_slices]) / dx
+        factor_right = (factor[mid_slices] + factor[right_slices]) / 2
+        factor_left = (factor[left_slices] + factor[mid_slices]) / 2
+        second_derivative = (
+            factor_right * first_derivative_right - factor_left * first_derivative_left
+        ) / dx
 
     # Extrapolate to the very left and right
     # Equivalent to the left/right-sided stencils at (4) in

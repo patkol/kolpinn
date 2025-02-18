@@ -151,6 +151,60 @@ def test_get_cumulative_integral_3D():
         assert torch.allclose(integral[x_index, :, 0], torch.tensor([0, 0.5, 2.5, 4.5]))
 
 
+def test_fd_derivative():
+    x = utilities.get_random_tensor(size=(2,), seed=0)
+    y = torch.tensor([0, 1, 2, 3, 4], dtype=torch.float32)
+    z = utilities.get_random_tensor(size=(3,), seed=1)
+    dimensions = {"x": x, "y": y, "z": z}
+    grid = grids.Grid(dimensions)
+    # fmt: off
+    tensor = torch.tensor(
+        [[0,], [1,], [2,], [3,], [4,]], dtype=torch.float32
+    ).expand(2, 5, 3)
+    # fmt: on
+
+    derivative = quantities.get_fd_derivative("y", tensor, grid)
+
+    assert torch.allclose(derivative, torch.tensor(1.0))
+
+
+def test_fd_second_derivative():
+    x = utilities.get_random_tensor(size=(2,), seed=0)
+    y = torch.tensor([0, 1, 2, 3, 4], dtype=torch.float32)
+    z = utilities.get_random_tensor(size=(3,), seed=1)
+    dimensions = {"x": x, "y": y, "z": z}
+    grid = grids.Grid(dimensions)
+    # fmt: off
+    tensor = torch.tensor(
+        [[0,], [1,], [4,], [9,], [16,]], dtype=torch.float32
+    ).expand(2, 5, 3)
+    # fmt: on
+
+    derivative = quantities.get_fd_second_derivative("y", tensor, grid)
+
+    assert torch.allclose(derivative, torch.tensor(2.0))
+
+
+def test_fd_second_derivative_with_factor():
+    x = utilities.get_random_tensor(size=(2,), seed=0)
+    y = torch.tensor([0, 1, 2, 3, 4], dtype=torch.float32)
+    z = utilities.get_random_tensor(size=(3,), seed=1)
+    dimensions = {"x": x, "y": y, "z": z}
+    grid = grids.Grid(dimensions)
+    # fmt: off
+    tensor = torch.tensor(
+        [[0,], [1,], [2,], [3,], [4,]], dtype=torch.float32
+    ).expand(2, 5, 3)
+    factor = torch.tensor(
+        [[0,], [0.5,], [1,], [1.5,], [2,]], dtype=torch.float32
+    ).expand(2, 5, 3)
+    # fmt: on
+
+    derivative = quantities.get_fd_second_derivative("y", tensor, grid, factor=factor)
+
+    assert torch.allclose(derivative, torch.tensor(0.5))
+
+
 def test_restrict():
     sizes = {"a": 3, "b": 1, "c": 2}
     subgrid_indices_dict = {
