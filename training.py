@@ -273,6 +273,7 @@ def get_extended_qs(
         state.evaluation_times[model.name] += eval_time
 
     for model in additional_models:
+        # print(f'Evaluating "{model.name}"')  # DEBUG
         model.apply(qs)
 
     return qs

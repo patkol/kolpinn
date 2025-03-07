@@ -168,8 +168,8 @@ class SimpleNNModel(Model):
         output_dtype,
         device: str,
         complex_polar: Optional[bool] = None,
-        r_transformation=torch.nn.Softplus(),
-        phi_transformation=lambda x: x,
+        r_transformation=Optional[Callable],
+        phi_transformation=Optional[Callable],
     ):
         """
         inputs_labels: labels of the quantities that will be input
@@ -182,6 +182,10 @@ class SimpleNNModel(Model):
 
         if complex_polar is None:
             complex_polar = False
+        if r_transformation is None:
+            r_transformation = torch.nn.Softplus()
+        if phi_transformation is None:
+            phi_transformation = lambda x: x  # noqa: E731
 
         self.inputs_labels = inputs_labels
         self.n_inputs = len(inputs_labels)
