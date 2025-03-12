@@ -2,7 +2,7 @@
 
 
 from collections.abc import Sequence
-from typing import Optional, Any
+from typing import Optional
 import torch
 import collections
 
@@ -150,7 +150,7 @@ def get_cumulative_integral(
     start_coordinate: float,
     integrand: torch.Tensor,
     grid: Grid,
-    start_value: Optional[Any] = None,
+    start_value=0,
 ) -> torch.Tensor:
     """
     Returns a tensor representing the integral in the dimension `label` from
@@ -166,20 +166,24 @@ def get_cumulative_integral(
     assert start_indices.size() == (1, 1)
     start_index = start_indices[0, 0]
 
-    # Calculate the integral to the right / left
-    integral = torch.zeros_like(integrand)
-    if start_value is not None:
-        start_slice = grids.get_nd_slice(label, start_index, grid)
-        integral[start_slice] = start_value
-    for direction in (1, -1):
-        range_stop = len(coords) if direction == 1 else -1
-        for i in range(start_index + direction, range_stop, direction):
-            i_prev = i - direction
-            prev_slice = grids.get_nd_slice(label, i_prev, grid)
-            current_slice = grids.get_nd_slice(label, i, grid)
-            avg_integrand = (integrand[prev_slice] + integrand[current_slice]) / 2
-            delta_coord = coords[i] - coords[i_prev]
-            integral[current_slice] = integral[prev_slice] + avg_integrand * delta_coord
+    # Calculate the cumulative integral from index 0
+    coords_shape = [1] * grid.n_dim
+    coords_shape[grid.index[label]] = grid.dim_size[label]
+    coords = coords.reshape(coords_shape)
+    left_slice = grids.get_nd_slice(label, slice(None, -1), grid)
+    right_slice = grids.get_nd_slice(label, slice(1, None), grid)
+    delta_coords = coords[right_slice] - coords[left_slice]
+    integrand_mids = (integrand[left_slice] + integrand[right_slice]) / 2
+    integral = torch.cumsum(integrand_mids * delta_coords, dim=grid.index[label])
+    zeros_shape = list(integral.shape)
+    zeros_shape[grid.index[label]] = 1
+    integral = torch.cat((torch.zeros(zeros_shape), integral), dim=grid.index[label])
+
+    # Shift the integral s.t. it assumes `start_value` at `start_coordinate`
+    start_index_slice = grids.get_nd_slice(
+        label, slice(start_index, start_index + 1), grid
+    )
+    integral += start_value - integral[start_index_slice]
 
     assert integral.size() == integrand.size()
 
