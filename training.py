@@ -360,6 +360,10 @@ def print_progress(trainer: Trainer):
     )
 
     print(f"Elapsed time: {validation_loss_time:>4f} ({training_loss_time:>4f}) s")
+    print(
+        "Learn rate:",
+        [param_group["lr"] for param_group in trainer.state.optimizer.param_groups],
+    )
     loss_quantities_chain = mathematics.get_chained_values(
         trainer.config.loss_quantities
     )
@@ -420,6 +424,8 @@ def train(
                 # Saving at step 0 as well to reserve the `saved_parameters_index`
                 save(trainer, save_subpath)
                 trainer.state.best_validation_loss = current_validation_loss
+                for param_group in trainer.state.optimizer.param_groups:
+                    param_group["lr"] = trainer.config.optimizer_kwargs["lr"]
 
             # Update scheduler
             if trainer.state.scheduler is not None:
@@ -453,11 +459,11 @@ def train(
                 load_scheduler=False,
             )
             reset_optimizer(trainer)
-            if trainer.state.n_loaded_current_parameters > 0:
+            if trainer.state.n_loaded_current_parameters > 1:
                 for param_group in trainer.state.optimizer.param_groups:
-                    reduction_factor = trainer.state.n_loaded_current_parameters + 1
+                    reduction_factor = trainer.state.n_loaded_current_parameters
                     lr = param_group["lr"] / reduction_factor
                     param_group["lr"] = lr
                     print(
-                        f"Learning rate reduced by a factor of {reduction_factor} to {lr} until the next reset"
+                        f"Learning rate reduced by a factor of {reduction_factor} to {lr}"
                     )
