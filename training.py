@@ -370,7 +370,7 @@ def print_progress(trainer: Trainer):
     for i, loss_name in enumerate(loss_quantities_chain):
         print(f"{loss_name}: {validation_losses[i]:.9f} ({training_losses[i]:.9f})")
     print(f"Total loss: {validation_losses[-1]:.9f} ({training_losses[-1]:.9f})")
-    print()
+    print(flush=True)
 
 
 def step(trainer: Trainer):
