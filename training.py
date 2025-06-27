@@ -368,8 +368,8 @@ def print_progress(trainer: Trainer):
         trainer.config.loss_quantities
     )
     for i, loss_name in enumerate(loss_quantities_chain):
-        print(f"{loss_name}: {validation_losses[i]:.9f} ({training_losses[i]:.9f})")
-    print(f"Total loss: {validation_losses[-1]:.9f} ({training_losses[-1]:.9f})")
+        print(f"{loss_name}: {validation_losses[i]:.6f} ({training_losses[i]:.6f})")
+    print(f"Total loss: {validation_losses[-1]:.6f} ({training_losses[-1]:.6f})")
     print(flush=True)
 
 

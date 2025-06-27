@@ -552,6 +552,8 @@ def interpolate(
     ):
         assert label_in == label_out
         if label_in == dimension_label:
+            assert torch.equal(torch.sort(coordinates_in)[0], coordinates_in)
+            assert torch.equal(torch.sort(coordinates_out)[0], coordinates_out)
             continue
         # No need to check if independent of the current dimension
         if not might_depend_on(label_in, quantity_in, grid_in):
