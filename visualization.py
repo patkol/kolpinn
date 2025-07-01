@@ -15,23 +15,43 @@ from . import training
 def get_avg_tensor(
     tensor: torch.Tensor,
     grid: Grid,
-    dimensions: Sequence[str],
+    kept_dimensions: Sequence[str],
+    avgd_dimensions: Optional[Sequence[str]],
 ) -> torch.Tensor:
+    """
+    Return a tensor that only has the `kept_dimensions` in the given order.
+    The `avgd_dimensions` are averaged over, and the others must be singleton
+    dimensions.
+    Extra `avgd_dimensions` that do not appear in the grid are allowed.
+    """
+
+    if avgd_dimensions is None:
+        avgd_dimensions = ()
+
+    assert set(kept_dimensions).issubset(set(grid.dimensions_labels))
+    assert set(avgd_dimensions).isdisjoint(set(kept_dimensions))
+
     tensor = tensor.detach().cpu()
     perm = []
     dims_to_squeeze = []
     for label in grid.dimensions_labels:
-        if label in dimensions:
-            perm.append(dimensions.index(label))
-            continue
-
         dim = grid.index[label]
-        tensor = tensor.mean(dim=dim, keepdim=True)
+        if label in kept_dimensions:
+            perm.append(kept_dimensions.index(label))
+            continue
+        elif label in avgd_dimensions:
+            tensor = tensor.mean(dim=dim, keepdim=True)
+        else:
+            assert (
+                tensor.shape[dim] == 1
+            ), f"Dimension {label} is not averaged over and not singleton"
         dims_to_squeeze.append(dim)
 
     tensor = tensor.squeeze(dims_to_squeeze)
     tensor = tensor.permute(perm)
-    assert len(tensor.size()) == len(dimensions), f"{tensor.size()}, {dimensions}"
+    assert len(tensor.size()) == len(
+        kept_dimensions
+    ), f"{tensor.size()}, {kept_dimensions}"
 
     return tensor
 
@@ -48,6 +68,7 @@ def add_lineplot(
     x_dimension,
     lines_dimension=None,
     *,
+    avgd_dimensions: Optional[Sequence[str]] = None,
     x_quantity: Optional[torch.Tensor] = None,
     print_raw_data=False,
     quantity_unit=1,
@@ -75,11 +96,11 @@ def add_lineplot(
             for v in grid[lines_dimension]
         )
 
-    y_values = get_avg_tensor(quantity, grid, plot_dimensions)
+    y_values = get_avg_tensor(quantity, grid, plot_dimensions, avgd_dimensions)
     if x_quantity is None:
         x_values = grid[x_dimension].detach().cpu()
     else:
-        x_values = get_avg_tensor(x_quantity, grid, plot_dimensions)
+        x_values = get_avg_tensor(x_quantity, grid, plot_dimensions, avgd_dimensions)
 
     if print_raw_data:
         print("x:")
@@ -102,6 +123,7 @@ def save_lineplot(
     x_dimension,
     lines_dimension=None,
     *,
+    avgd_dimensions: Optional[Sequence[str]] = None,
     x_quantity: Optional[torch.Tensor] = None,
     x_label: Optional[str] = None,
     path_prefix=None,
@@ -146,6 +168,7 @@ def save_lineplot(
         quantity_label,
         x_dimension,
         lines_dimension,
+        avgd_dimensions=avgd_dimensions,
         x_quantity=x_quantity,
         print_raw_data=print_raw_data,
         quantity_unit=quantity_unit,
@@ -177,6 +200,7 @@ def add_heatmap(
     quantity_label,
     x_dimension,
     y_dimension,
+    avgd_dimensions: Optional[Sequence[str]] = None,
     print_raw_data=False,  # not used
     quantity_unit=1,
     quantity_unit_name=None,
@@ -196,7 +220,7 @@ def add_heatmap(
 
     plot_dimensions = (y_dimension, x_dimension)
 
-    tensor = get_avg_tensor(quantity, grid, plot_dimensions)
+    tensor = get_avg_tensor(quantity, grid, plot_dimensions, avgd_dimensions)
     x_values = grid[x_dimension].detach().cpu()
     y_values = grid[y_dimension].detach().cpu()
 
@@ -221,6 +245,7 @@ def save_heatmap(
     quantity_label,
     x_dimension,
     y_dimension,
+    avgd_dimensions: Optional[Sequence[str]] = None,
     print_raw_data=False,  # not used
     quantity_unit=1,
     quantity_unit_name=None,
@@ -249,6 +274,7 @@ def save_heatmap(
         quantity_label,
         x_dimension,
         y_dimension,
+        avgd_dimensions,
         print_raw_data,
         quantity_unit,
         quantity_unit_name,
@@ -269,6 +295,7 @@ def add_complex_polar_plot(
     quantity_label,
     x_dimension,
     lines_dimension=None,
+    avgd_dimensions: Optional[Sequence[str]] = None,
     quantity_unit=1,
     quantity_unit_name=None,
     lines_unit=1,
@@ -291,7 +318,7 @@ def add_complex_polar_plot(
             for v in grid[lines_dimension]
         )
 
-    tensor = get_avg_tensor(quantity, grid, plot_dimensions)
+    tensor = get_avg_tensor(quantity, grid, plot_dimensions, avgd_dimensions)
     ax.plot(
         torch.angle(tensor),
         torch.abs(tensor) / quantity_unit,
@@ -306,6 +333,7 @@ def save_complex_polar_plot(
     quantity_label,
     x_dimension,
     lines_dimension=None,
+    avgd_dimensions: Optional[Sequence[str]] = None,
     path_prefix=None,
     quantity_unit=1,
     quantity_unit_name=None,
@@ -330,6 +358,7 @@ def save_complex_polar_plot(
         quantity_label,
         x_dimension,
         lines_dimension,
+        avgd_dimensions,
         quantity_unit=quantity_unit,
         quantity_unit_name=quantity_unit_name,
         lines_unit=lines_unit,
