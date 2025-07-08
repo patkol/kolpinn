@@ -326,7 +326,7 @@ class MultiModel:
         kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        qs_trafo should accept, modify and return qs.
+        qs_trafo should accept and modify qs.
         The MultiModel allows operations that depend on multiple grids.
         The `kwargs` will be provided to `qs_trafo`
         """
@@ -352,7 +352,7 @@ class MultiModel:
         self.kwargs = kwargs
 
     def apply(self, qs: Dict[str, QuantityDict]):
-        return self.qs_trafo(qs, **self.kwargs)
+        self.qs_trafo(qs, **self.kwargs)
 
     def set_requires_grad(self, requires_grad: bool):
         _set_requires_grad(requires_grad, self.parameters)
@@ -402,7 +402,6 @@ def get_multi_model(
         # Apply the model
         q = qs[grid_name]
         q[model_name] = model.apply(q)
-        return qs
 
     multi_model_kwargs = None
     if hasattr(model, "kwargs") and "q_full" in model.kwargs:
@@ -470,8 +469,6 @@ def get_combined_multi_model(
                 supergrid.subgrids[grid_name],
             )
 
-        return qs
-
     return MultiModel(
         qs_trafo,
         multi_model_name,
@@ -525,8 +522,6 @@ def add_coordinates(qs: Dict[str, QuantityDict]):
                 dimension_values,
                 [label],
             )
-
-    return qs
 
 
 coordinates_model = MultiModel(add_coordinates, "coordinates")
