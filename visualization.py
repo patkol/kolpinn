@@ -28,8 +28,8 @@ def get_avg_tensor(
     if avgd_dimensions is None:
         avgd_dimensions = ()
 
-    assert set(kept_dimensions).issubset(set(grid.dimensions_labels))
-    assert set(avgd_dimensions).isdisjoint(set(kept_dimensions))
+    assert set(kept_dimensions).issubset(set(grid.dimensions_labels)), kept_dimensions
+    assert set(avgd_dimensions).isdisjoint(set(kept_dimensions)), avgd_dimensions
 
     tensor = tensor.detach().cpu()
     perm = []

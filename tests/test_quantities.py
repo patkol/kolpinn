@@ -514,6 +514,7 @@ def test_interpolate_3D():
 def test_interpolate_equal():
     quantity_in = utilities.get_random_tensor(size=(2, 3, 4), seed=0)
     grid = utilities.get_random_grid({"x": 2, "y": 3, "z": 4}, seed=1)
+    grid.dimensions["z"] = torch.sort(grid["z"])[0]
 
     quantity_out = quantities.interpolate(quantity_in, grid, grid, dimension_label="z")
 

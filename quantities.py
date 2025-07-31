@@ -3,6 +3,7 @@
 
 from collections.abc import Sequence
 from typing import Optional
+import copy
 import torch
 import collections
 
@@ -601,3 +602,39 @@ def interpolate(
         )
 
     return quantity_out
+
+
+def interpolate_multiple(
+    quantity_in: torch.Tensor,
+    grid_in: Grid,
+    grid_out: Grid,
+    *,
+    dimension_labels: Sequence[str],
+):
+    """
+    Interpolate linearly from `quantity_in` on `grid_in` to `grid_out`, where
+    the grids differ only in the dimensions `dimension_labels`.
+    For gridpoints outside the range of `grid_in[dimension_label]` we extrapolate
+    using the two outermost points.
+    Assuming ordered grid_in & grid_out in `dimension_labels`.
+    If the grids are the same, a clone of quantity_in is returned.
+    """
+
+    # Interpolating dimension by dimension
+    # https://en.wikipedia.org/wiki/Trilinear_interpolation
+    current_grid_in_dimensions = copy.copy(grid_in.dimensions)
+    current_grid_out_dimensions = copy.copy(grid_in.dimensions)
+    current_quantity = quantity_in
+    for dimension_label in dimension_labels:
+        current_grid_out_dimensions[dimension_label] = grid_out[dimension_label]
+        current_quantity = interpolate(
+            current_quantity,
+            Grid(current_grid_in_dimensions),
+            Grid(current_grid_out_dimensions),
+            dimension_label=dimension_label,
+        )
+        current_grid_in_dimensions = copy.copy(current_grid_out_dimensions)
+
+    assert current_grid_out_dimensions == grid_out.dimensions
+
+    return current_quantity
