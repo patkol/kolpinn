@@ -543,6 +543,7 @@ def get_qs(
     )
 
     for model in models:
+        # print(f'Evaluating "{model.name}"')  # DEBUG
         model.apply(qs)
     set_requires_grad_quantities(quantities_requiring_grad, qs)
 

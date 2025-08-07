@@ -532,7 +532,12 @@ def combine_quantities(q_sequence: Sequence[QuantityDict], grid: Grid):
 
 
 def interpolate(
-    quantity_in: torch.Tensor, grid_in: Grid, grid_out: Grid, *, dimension_label: str
+    quantity_in: torch.Tensor,
+    grid_in: Grid,
+    grid_out: Grid,
+    *,
+    dimension_label: str,
+    search_method: str,
 ):
     """
     Interpolate linearly from `quantity_in` on `grid_in` to `grid_out`, where
@@ -541,6 +546,8 @@ def interpolate(
     using the two outermost points.
     Assuming ordered grid_in & grid_out in `dimension_label`.
     If the grids are the same, a clone of quantity_in is returned.
+    search_method: "incremental" is good if the output coordinates are dense in the
+        input ones. If not, "searchsorted" will be faster.
     """
 
     assert compatible(quantity_in, grid_in)
@@ -566,6 +573,8 @@ def interpolate(
     coordinates_in = grid_in[dimension_label]
     coordinates_out = grid_out[dimension_label]
 
+    assert len(coordinates_in) >= 2
+
     if torch.equal(coordinates_in, coordinates_out):
         return torch.clone(quantity_in)
 
@@ -574,13 +583,21 @@ def interpolate(
     shape_out[dimension_index] = len(coordinates_out)
     quantity_out = torch.zeros(shape_out, dtype=quantity_in.dtype)
 
-    i_in = 0  # index of coordinates_in
+    # index of coordinates_in to the left of the interpolated point (not the rightmost
+    # however s.t. we can extrapolate)
+    i_in = 0
     for i_out, coordinate_out in enumerate(coordinates_out):
-        while (
-            i_in + 1 < len(coordinates_in) - 1
-            and coordinates_in[i_in + 1] < coordinate_out
-        ):
-            i_in += 1
+        if search_method == "incremental":
+            while (
+                i_in + 1 < len(coordinates_in) - 1
+                and coordinates_in[i_in + 1] < coordinate_out
+            ):
+                i_in += 1
+        else:
+            assert search_method == "searchsorted"
+            i_in = torch.searchsorted(coordinates_in, coordinate_out).item() - 1
+            i_in = max(0, i_in)
+            i_in = min(len(coordinates_in) - 2, i_in)
 
         i_in_left = i_in
         i_in_right = i_in + 1
@@ -610,6 +627,7 @@ def interpolate_multiple(
     grid_out: Grid,
     *,
     dimension_labels: Sequence[str],
+    search_method: str,
 ):
     """
     Interpolate linearly from `quantity_in` on `grid_in` to `grid_out`, where
@@ -632,6 +650,7 @@ def interpolate_multiple(
             Grid(current_grid_in_dimensions),
             Grid(current_grid_out_dimensions),
             dimension_label=dimension_label,
+            search_method=search_method,
         )
         current_grid_in_dimensions = copy.copy(current_grid_out_dimensions)
 
