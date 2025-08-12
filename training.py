@@ -44,6 +44,7 @@ class TrainerState:
     const_qs: Dict
     trained_models: Sequence[MultiModel]
     dependent_models: Sequence[MultiModel]
+    update_const_qs_models: Sequence[MultiModel]
     optimizer: torch.optim.Optimizer
     scheduler: Any = None
     n_steps: int = 0
@@ -112,6 +113,7 @@ def get_trainer_state(
     const_qs: Dict[str, QuantityDict],
     trained_models: Sequence[MultiModel],
     dependent_models: Sequence[MultiModel],
+    update_const_qs_models: Sequence[MultiModel],
 ) -> TrainerState:
     optimizer = get_optimizer(config, trained_models=trained_models)
     scheduler = get_scheduler(
@@ -123,6 +125,7 @@ def get_trainer_state(
         const_qs,
         trained_models,
         dependent_models,
+        update_const_qs_models,
         optimizer,
         scheduler,
     )
@@ -136,6 +139,7 @@ def reset_trainer_state(trainer: Trainer) -> None:
         const_qs=trainer.state.const_qs,
         trained_models=trainer.state.trained_models,
         dependent_models=trainer.state.dependent_models,
+        update_const_qs_models=trainer.state.update_const_qs_models,
     )
 
 
@@ -325,6 +329,10 @@ def get_losses(
 
     losses = _extract_losses(qs, trainer.config)
     losses["Total"] = trainer.config.loss_aggregate_function(list(losses.values()))
+
+    for model in trainer.state.update_const_qs_models:
+        model.kwargs["extended_qs_batched"] = qs
+        model.apply(const_qs_full)
 
     history = trainer.training_history if for_training else trainer.validation_history
     assert trainer.state.training_start_time is not None
