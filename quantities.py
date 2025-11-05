@@ -654,6 +654,8 @@ def interpolate_multiple(
         )
         current_grid_in_dimensions = copy.copy(current_grid_out_dimensions)
 
-    assert current_grid_out_dimensions == grid_out.dimensions
+    assert current_grid_out_dimensions.keys() == grid_out.dimensions.keys()
+    for label in current_grid_out_dimensions.keys():
+        assert torch.equal(current_grid_out_dimensions[label], grid_out[label])
 
     return current_quantity
